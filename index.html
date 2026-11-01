@@ -6,7 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet">
+<!-- 中文字体体积大、国内访问慢：改成非阻塞加载，先用系统字体渲染，字体到了再换 -->
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <style>
 /* 版式：试卷/答案页。五个板块切换时整页强调色随之改变。 */
@@ -528,6 +530,7 @@ main { padding-top: 24px; }
   position: relative;
 }
 .qcard.is-key { border-left: 3px solid var(--hard); }
+.qcard[hidden], .qgroup[hidden], .filter-empty[hidden] { display: none !important; }
 .qcard.flash { animation: flash 1.6s ease; }
 @keyframes flash {
   0%, 100% { box-shadow: var(--shadow); }
@@ -966,6 +969,17 @@ footer .mono { font-family: var(--mono); }
   #printRoot .pq.practice .pblank { flex: 1 1 auto; min-height: 20mm; margin-top: 6pt; border-top: .8pt dashed #dcdcd4; }
   #printRoot .pq.practice .pblank > span { display: block; font-size: 8pt; color: #c2c2ba; letter-spacing: .5pt; }
 }
+/* 年份数据按需加载时的占位 */
+#app:empty::after,
+html[data-loading="true"] #app::after {
+  content: "正在载入真题…";
+  display: block;
+  padding: 80px 0;
+  text-align: center;
+  color: var(--ink-3, #8a8a80);
+  font-size: 14px;
+  letter-spacing: .04em;
+}
 </style>
 </head>
 <body>
@@ -1022,39 +1036,8 @@ footer .mono { font-family: var(--mono); }
 
 <script src="vendor/katex/katex.min.js"></script>
 <script src="vendor/katex/contrib/auto-render.min.js"></script>
+<!-- 年份数据按需加载（data.js 里的 loadYear），首屏不再一次性拉 30 个脚本 -->
 <script src="data.js"></script>
-<script src="data2010.js"></script>
-<script src="data2011.js"></script>
-<script src="data2012.js"></script>
-<script src="data2013.js"></script>
-<script src="data2014.js"></script>
-<script src="data2015.js"></script>
-<script src="data2016.js"></script>
-<script src="data2017.js"></script>
-<script src="data2018.js"></script>
-<script src="data2019.js"></script>
-<script src="data2020.js"></script>
-<script src="data2021.js"></script>
-<script src="data2022.js"></script>
-<script src="data2023.js"></script>
-<script src="data2024.js"></script>
-<script src="data2025.js"></script>
-<script src="data2026.js"></script>
-<script src="meta2012.js"></script>
-<script src="meta2013.js"></script>
-<script src="meta2014.js"></script>
-<script src="meta2015.js"></script>
-<script src="meta2016.js"></script>
-<script src="meta2017.js"></script>
-<script src="meta2018.js"></script>
-<script src="meta2019.js"></script>
-<script src="meta2020.js"></script>
-<script src="meta2021.js"></script>
-<script src="meta2022.js"></script>
-<script src="meta2023.js"></script>
-<script src="meta2024.js"></script>
-<script src="meta2025.js"></script>
-<script src="meta2026.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

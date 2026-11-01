@@ -5,6 +5,50 @@ const AVAILABLE_YEARS = [2010, 2011];
 const ALL_YEARS = Array.from({ length: 17 }, (_, i) => 2010 + i);
 const SUBJ = { 1: '数学一', 2: '数学二', 3: '数学三' };
 
+/* 题目构造器：各年份数据文件共用 */
+const Q = (n, m, t, lv, st, x, o, a, sol) => ({ n, m, t, lv, st, x, o, a, sol });
+
+/* 已上线年份与每年题数（供年份条与页脚统计使用，无需先载入各年数据） */
+const LIVE_YEARS = ALL_YEARS.slice();
+const YEAR_INFO = {
+  2010: 69, 2011: 69, 2012: 69, 2013: 69, 2014: 69, 2015: 69, 2016: 69,
+  2017: 69, 2018: 69, 2019: 69, 2020: 69, 2021: 66, 2022: 66, 2023: 66,
+  2024: 66, 2025: 66, 2026: 66
+};
+
+/* 按年懒加载：首屏只载当年，其余年份用到时再注入 <script>。
+   2010/2011 的元数据就在本文件里，只有试卷数据需要另载。 */
+const LOADED_YEARS = new Set();
+const YEAR_LOADS = new Map();
+const YEAR_FILES = y => (y >= 2012 ? [`data${y}.js`, `meta${y}.js`] : [`data${y}.js`]);
+
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = src;
+    el.onload = () => resolve();
+    el.onerror = () => reject(new Error(`数据加载失败：${src}`));
+    document.head.appendChild(el);
+  });
+}
+
+function loadYear(year) {
+  if (LOADED_YEARS.has(year)) return Promise.resolve();
+  if (YEAR_LOADS.has(year)) return YEAR_LOADS.get(year);
+  // 同一年内按 data → meta 的顺序执行
+  const p = YEAR_FILES(year)
+    .reduce((chain, src) => chain.then(() => loadScriptOnce(src)), Promise.resolve())
+    .then(() => {
+      LOADED_YEARS.add(year);
+      YEAR_LOADS.delete(year);
+    }, err => {
+      YEAR_LOADS.delete(year);
+      throw err;
+    });
+  YEAR_LOADS.set(year, p);
+  return p;
+}
+
 const REVIEW = {
   2010: {
     overall: '较难',

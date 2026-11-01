@@ -22,7 +22,7 @@
 ```
 index.html        页面骨架与样式
 app.js            渲染与交互逻辑
-data.js           汇总入口
+data.js           汇总入口 + 年份清单 + 按年懒加载器
 dataYYYY.js       各年份题库（题目、考点、难度、答案要点）
 metaYYYY.js       各年份元信息（试卷结构、分值）
 pdfs/YYYY/        真题与解析 PDF（每年 m1/m2/m3 的 paper 与 sol，部分年份含 review）
@@ -31,6 +31,14 @@ figs/             题目配图
 vendor/katex/     KaTeX（本地化，离线可用）
 wrangler.jsonc    Cloudflare Workers 静态资源部署配置
 ```
+
+## 性能
+
+- **按年懒加载**：首屏只载入当前年份的题库，其余年份点选时再拉取（`data.js` 里的 `loadYear`），首屏脚本从 1.1MB / 36 个请求降到约 350KB / 5 个请求。
+- **复用已渲染节点**：切回看过的年份时直接复用那份 DOM，不重建页面、不重排公式。
+- **筛选不重建**：难度与「只看重点」只切换题目卡的显隐，不做整页重绘。
+- **字体非阻塞**：Google Fonts 用 `media="print" onload` 异步加载，先用系统字体出字。
+- **长缓存**：`_headers` 给 `pdfs/` 与 `vendor/` 设置一年期缓存。
 
 ## 本地运行
 

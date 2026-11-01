@@ -28,8 +28,8 @@
 
   const state = { view: 'm1', year: 2010, level: 'all', keyOnly: false };
 
-  // 某年三科数据齐全才算上线
-  const liveYears = () => ALL_YEARS.filter(y => PAPERS[`${y}-1`] && PAPERS[`${y}-2`] && PAPERS[`${y}-3`]);
+  // 已上线年份由 data.js 的清单给出，不必先把各年数据都载进来
+  const liveYears = () => LIVE_YEARS;
 
   /* ── 错题本（localStorage，file:// 下同样可用） ── */
   const WRONG_KEY = 'kaoyanMath.wrong.v1';
@@ -172,7 +172,7 @@
     const originBtn = opts.origin
       ? `<button class="minilink" type="button" data-jump="${year},${subject},${q.n}">原卷定位</button>`
       : '';
-    return `<article class="qcard${key ? ' is-key' : ''}" id="q-${year}-${subject}-${q.n}">
+    return `<article class="qcard${key ? ' is-key' : ''}" id="q-${year}-${subject}-${q.n}" data-lv="${lv}"${key ? ' data-key="1"' : ''}>
       <div class="qhead">
         <span class="qnum">${q.n}</span>
         <span class="chip ${LV_CLASS[lv]}">${lv}</span>
@@ -214,8 +214,8 @@
       // 页脚统计：已上线年份的套卷数与题目总数
       const foot = document.getElementById('footStat');
       if (foot) {
-        const papers = live.reduce((a, y) => a + [1, 2, 3].filter(s => PAPERS[`${y}-${s}`]).length, 0);
-        const total = live.reduce((a, y) => a + [1, 2, 3].reduce((m, s) => m + (PAPERS[`${y}-${s}`] || []).length, 0), 0);
+        const papers = live.length * 3;
+        const total = live.reduce((a, y) => a + (YEAR_INFO[y] || 0), 0);
         foot.textContent = `${first}—${last} · ${papers} 套卷 · ${total} 题`;
       }
     } else {
@@ -283,23 +283,18 @@
       <p class="distnote">考点按题号逐一标注；红字为当年重点题。</p>
     </div>`;
 
-    const filtered = paper.filter(q => {
-      if (state.keyOnly && !isKeyQ(year, subject, q.n)) return false;
-      if (state.level !== 'all' && levelOf(year, subject, q.n) !== state.level) return false;
-      return true;
-    });
-
+    // 筛选不重建页面：所有题目都渲染出来，切换难度/重点时只改显隐
     const filters = `<div class="filters" role="group" aria-label="筛选">
       ${[['all', '全部'], ['常规', '常规'], ['中档', '中档'], ['难题', '难题']].map(([v, label]) => {
         const on = !state.keyOnly && (state.level === v || (v === 'all' && state.level === 'all'));
         return `<button class="fbtn" type="button" data-filter="${v}" aria-pressed="${on}">${label}</button>`;
       }).join('')}
       <button class="fbtn key" type="button" data-filter="key" aria-pressed="${state.keyOnly}">只看重点</button>
-      <span class="fcount">显示 ${filtered.length} / ${paper.length} 题</span>
+      <span class="fcount">显示 ${paper.length} / ${paper.length} 题</span>
     </div>`;
 
     const groups = groupsFor(year).map(g => {
-      const qs = filtered.filter(q => q.n >= g.from && q.n <= g.to);
+      const qs = paper.filter(q => q.n >= g.from && q.n <= g.to);
       if (!qs.length) return '';
       return `<section class="qgroup">
         <div class="qgroup-head"><h3>${g.title}</h3><span>${g.meta}</span></div>
@@ -330,7 +325,8 @@
       <section class="section">
         <div class="sec-head"><h2>逐题精析</h2><span class="hint">点击「答案 · 解析」展开</span></div>
         ${filters}
-        ${groups || '<div class="card empty">没有符合筛选条件的题目</div>'}
+        ${groups || '<div class="card empty">该年份题目整理中</div>'}
+        <div class="card empty filter-empty" hidden>没有符合筛选条件的题目</div>
       </section>`;
   }
 
@@ -623,16 +619,87 @@
   }
 
   /* ── 主渲染 ── */
+  // 复用已渲染好的 DOM 节点：切回同一年时既不重建页面，也不重排公式
+  const VIEW_CACHE = new Map();
+  const VIEW_CACHE_MAX = 5;
+  let renderToken = 0;
+
+  const cacheKeyOf = () => `${state.view}|${state.year}`;
+
+  // 难度 / 重点筛选只改显隐，不重建页面
+  function applyFilter() {
+    if (!SUBJ_VIEW[state.view]) return;
+    const cards = [...appEl.querySelectorAll('.qcard[data-lv]')];
+    let shown = 0;
+    cards.forEach(c => {
+      const hide = (state.keyOnly && c.dataset.key !== '1')
+        || (state.level !== 'all' && c.dataset.lv !== state.level);
+      c.hidden = hide;
+      if (!hide) shown++;
+    });
+    appEl.querySelectorAll('.qgroup').forEach(g => {
+      const inner = [...g.querySelectorAll('.qcard[data-lv]')];
+      g.hidden = inner.length > 0 && inner.every(c => c.hidden);
+    });
+    const cnt = appEl.querySelector('.fcount');
+    if (cnt) cnt.textContent = `显示 ${shown} / ${cards.length} 题`;
+    const empty = appEl.querySelector('.filter-empty');
+    if (empty) empty.hidden = shown > 0 || !cards.length;
+    appEl.querySelectorAll('.fbtn').forEach(b => {
+      const v = b.dataset.filter;
+      const on = v === 'key' ? state.keyOnly : (!state.keyOnly && state.level === v);
+      b.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  // 错题本会跨年份取题，涉及的年份都要先载入
+  function neededYears() {
+    if (state.view !== 'wrong') return [state.year];
+    const years = [...new Set([...WRONG].map(k => Number(k.split('-')[0])))];
+    return years.length ? years.filter(y => ALL_YEARS.includes(y)) : [state.year];
+  }
+
   function render() {
+    const token = ++renderToken;
+    const missing = neededYears().filter(y => !LOADED_YEARS.has(y));
+    if (missing.length) {
+      document.documentElement.dataset.loading = 'true';
+      Promise.all(missing.map(loadYear)).then(() => {
+        document.documentElement.dataset.loading = '';
+        if (token === renderToken) renderNow();
+      }, err => {
+        document.documentElement.dataset.loading = '';
+        if (token !== renderToken) return;
+        appEl.innerHTML = `<div class="card empty">${err.message}。请检查网络后刷新重试。</div>`;
+      });
+      return;
+    }
+    renderNow();
+  }
+
+  function renderNow() {
     document.documentElement.dataset.view = state.view;
     try {
       history.replaceState(null, '', `?view=${state.view}&year=${state.year}`);
     } catch (e) { /* file:// 下部分浏览器不允许改写地址 */ }
-    const subject = SUBJ_VIEW[state.view];
-    if (subject) appEl.innerHTML = subjectHTML(subject);
-    else if (state.view === 'key') appEl.innerHTML = keyHTML();
-    else if (state.view === 'wrong') appEl.innerHTML = wrongHTML();
-    else appEl.innerHTML = suppHTML();
+
+    const cacheKey = cacheKeyOf();
+    const cachedNodes = VIEW_CACHE.get(cacheKey);
+    if (cachedNodes) {
+      VIEW_CACHE.delete(cacheKey);      // 挪到队尾，LRU 淘汰最久未用的
+      VIEW_CACHE.set(cacheKey, cachedNodes);
+      appEl.replaceChildren(...cachedNodes);
+    } else {
+      const subject = SUBJ_VIEW[state.view];
+      if (subject) appEl.innerHTML = subjectHTML(subject);
+      else if (state.view === 'key') appEl.innerHTML = keyHTML();
+      else if (state.view === 'wrong') appEl.innerHTML = wrongHTML();
+      else appEl.innerHTML = suppHTML();
+      renderMath();
+      VIEW_CACHE.set(cacheKey, [...appEl.childNodes]);
+      if (VIEW_CACHE.size > VIEW_CACHE_MAX) VIEW_CACHE.delete(VIEW_CACHE.keys().next().value);
+    }
+    applyFilter();
 
     modulesEl.querySelectorAll('.mod').forEach(b => {
       b.setAttribute('aria-pressed', String(b.dataset.view === state.view));
@@ -642,7 +709,6 @@
     yearsEl.querySelectorAll('.year').forEach(b => {
       b.setAttribute('aria-current', String(Number(b.dataset.year) === state.year));
     });
-    renderMath();
   }
 
   function renderMath(root) {
@@ -671,14 +737,17 @@
     state.year = year;
     state.level = 'all';
     state.keyOnly = false;
-    render();
-    requestAnimationFrame(() => {
-      const el = document.getElementById(`q-${year}-${subject}-${n}`);
-      if (!el) return;
-      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      el.classList.add('flash');
-      setTimeout(() => el.classList.remove('flash'), 1700);
-    });
+    const ready = LOADED_YEARS.has(year) ? Promise.resolve() : loadYear(year);
+    ready.then(() => {
+      render();
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`q-${year}-${subject}-${n}`);
+        if (!el) return;
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.classList.add('flash');
+        setTimeout(() => el.classList.remove('flash'), 1700);
+      });
+    }).catch(() => {});
   }
 
   /* ── PDF 浮层 ── */
@@ -703,6 +772,7 @@
       const k = wb.dataset.wrong;
       if (WRONG.has(k)) WRONG.delete(k); else WRONG.add(k);
       saveWrong();
+      VIEW_CACHE.clear();   // 缓存里的按钮状态已过期
       if (state.view === 'wrong') {
         const sy = window.scrollY;
         render();
@@ -726,6 +796,7 @@
       if (!window.confirm(`清空错题本里的 ${WRONG.size} 道题？此操作不可撤销。`)) return;
       WRONG.clear();
       saveWrong();
+      VIEW_CACHE.clear();
       updateWrongBadge();
       render();
       return;
@@ -756,7 +827,7 @@
         state.level = v;
         state.keyOnly = false;
       }
-      render();
+      applyFilter();
       return;
     }
 

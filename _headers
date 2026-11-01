@@ -1,0 +1,7 @@
+# 原卷 PDF 与 KaTeX 体积大且几乎不变，交给浏览器长期缓存；
+# 页面与脚本保持默认的每次校验，保证更新能及时生效。
+/pdfs/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/vendor/*
+  Cache-Control: public, max-age=31536000, immutable

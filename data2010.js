@@ -1,6 +1,4 @@
 /* 2010 年真题：数学一、数学二、数学三 */
-const Q = (n, m, t, lv, st, x, o, a, sol) => ({ n, m, t, lv, st, x, o, a, sol });
-
 PAPERS['2010-1'] = [
   Q(1, '高数', '函数极限（$1^\\infty$ 型）', '常规', 2,
     R`极限 $\displaystyle\lim_{x\to\infty}\left[\frac{x^2}{(x-a)(x+b)}\right]^x=(\quad)$．`,
