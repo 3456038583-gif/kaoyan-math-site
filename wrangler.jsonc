@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kaoyan-math-site",
+  "compatibility_date": "2026-10-23",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "."
+  },
+  "routes": [
+    {
+      "pattern": "math.feikntn111.us.ci",
+      "custom_domain": true
+    }
+  ]
+}
