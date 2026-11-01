@@ -345,7 +345,8 @@
         <div class="topicbox">
           <div class="idx">${String(i + 1).padStart(2, '0')} / ${String(groups.length).padStart(2, '0')}</div>
           <h4>${safe(g.topic)}</h4>
-          <p class="note">${safe(g.note)}</p>
+          <button class="ansbtn" type="button" aria-expanded="false">答案 · 解析</button>
+          <div class="ansbox" hidden><p class="note">${safe(g.note)}</p></div>
         </div>
         <div class="qlist">${cards}</div>
       </article>`;
@@ -804,7 +805,10 @@
 
     const ans = e.target.closest('.ansbtn');
     if (ans) {
-      const box = ans.closest('.qcard').querySelector('.ansbox');
+      // 题目卡里的按钮在 .qfoot 里，重点题的按钮紧挨着答案框，两种都支持
+      const box = ans.nextElementSibling && ans.nextElementSibling.classList.contains('ansbox')
+        ? ans.nextElementSibling
+        : ans.closest('.qcard').querySelector('.ansbox');
       const open = box.hidden;
       box.hidden = !open;
       ans.setAttribute('aria-expanded', String(open));
