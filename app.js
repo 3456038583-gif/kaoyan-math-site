@@ -172,6 +172,11 @@
     const originBtn = opts.origin
       ? `<button class="minilink" type="button" data-jump="${year},${subject},${q.n}">原卷定位</button>`
       : '';
+    // 同一道题在多个卷子里出现时，列出考过它的卷子与题号
+    const alsoInHTML = opts.alsoIn && opts.alsoIn.length > 1
+      ? `<div class="alsoin"><span class="lab">同题</span>${opts.alsoIn.map(([s, n]) =>
+          `<span class="chip mod-tag">${SUBJ[s]} 第 ${n} 题</span>`).join('')}</div>`
+      : '';
     return `<article class="qcard${key ? ' is-key' : ''}" id="q-${year}-${subject}-${q.n}" data-lv="${lv}"${key ? ' data-key="1"' : ''}>
       <div class="qhead">
         <span class="qnum">${q.n}</span>
@@ -182,6 +187,7 @@
         <span class="qmeta">考点：<b>${safe(q.t)}</b></span>
         ${stars(q.st)}
       </div>
+      ${alsoInHTML}
       <div class="qtext">${safe(q.x)}</div>
       ${options}
       <div class="qfoot">
@@ -334,21 +340,45 @@
   function keyHTML() {
     const year = state.year;
     const groups = KEY_GROUPS[year] || [];
-    const total = groups.reduce((s, g) => s + g.items.length, 0);
-
-    const body = groups.map((g, i) => {
-      const cards = g.items.map(([subject, n]) => {
+    // 同一道题会同时出现在数一/数二/数三的试卷里（题干完全一致），
+    // 重点题里只列一次，并在卡片上标注考过它的卷子与题号
+    const firstSeen = new Map();   // 题干 -> { groupIndex, topic, papers: [[subject, n], ...] }
+    const layout = groups.map((g, gi) => {
+      const cards = [];
+      const refs = [];
+      g.items.forEach(([subject, n]) => {
         const q = getQ(year, subject, n);
-        return q ? renderCard(q, subject, year, { showSubject: true, inKey: true }) : '';
-      }).join('');
+        if (!q) return;
+        const stem = String(q.x).trim();
+        const hit = firstSeen.get(stem);
+        if (hit) {
+          hit.papers.push([subject, n]);
+          if (hit.groupIndex !== gi) refs.push({ topic: hit.topic, index: hit.groupIndex });
+          return;
+        }
+        const rec = { q, subject, n, papers: [[subject, n]] };
+        firstSeen.set(stem, { groupIndex: gi, topic: g.topic, papers: rec.papers });
+        cards.push(rec);
+      });
+      return { g, gi, cards, refs };
+    });
+    const rawTotal = groups.reduce((s, g) => s + g.items.length, 0);
+    const total = firstSeen.size;
+
+    const body = layout.map(({ g, gi, cards, refs }) => {
+      const cardHTML = cards
+        .map(c => renderCard(c.q, c.subject, year, { showSubject: true, inKey: true, alsoIn: c.papers }))
+        .join('');
+      const refHTML = refs.map(r =>
+        `<p class="dupref">同题已在第 ${String(r.index + 1).padStart(2, '0')} 组「${safe(r.topic)}」列出</p>`).join('');
       return `<article class="keytopic">
         <div class="topicbox">
-          <div class="idx">${String(i + 1).padStart(2, '0')} / ${String(groups.length).padStart(2, '0')}</div>
+          <div class="idx">${String(gi + 1).padStart(2, '0')} / ${String(groups.length).padStart(2, '0')}</div>
           <h4>${safe(g.topic)}</h4>
           <button class="ansbtn" type="button" aria-expanded="false">答案 · 解析</button>
           <div class="ansbox" hidden><p class="note">${safe(g.note)}</p></div>
         </div>
-        <div class="qlist">${cards}</div>
+        <div class="qlist">${cardHTML}${refHTML}</div>
       </article>`;
     }).join('');
 
@@ -356,7 +386,7 @@
         <div>
           <p class="kicker">重点题 · ${year}</p>
           <h2>${year} 年重点题</h2>
-          <p class="meta"><b>${groups.length}</b> 组 · <b>${total}</b> 题 · 同一考点跨卷对比</p>
+          <p class="meta"><b>${groups.length}</b> 组 · <b>${total}</b> 题 · 同一考点跨卷对比${total < rawTotal ? ' · 同题已合并' : ''}</p>
         </div>
         <div class="pdfbtns">
           <button class="btn primary" type="button" data-pdf="${reviewPath(year)}" data-pdf-title="${year} 年真题评价 & 重点题">
