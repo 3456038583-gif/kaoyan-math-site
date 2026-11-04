@@ -1,12 +1,10 @@
-# 考研数学真题速查
+# 考研数学真题速查 · 高清原卷版
 
 2010–2026 年考研数学（数一 / 数二 / 数三）真题的离线速查网页：按年份、科目、难度筛选题目，标记关键题，维护错题本，并可直接查看对应年份的原卷与解析 PDF。
 
 纯静态站点，无构建步骤、无后端依赖，双击 `index.html` 即可在本地使用。
 
-线上地址：<https://math.feikntn111.us.ci>
-
-> 本仓库是压缩过的发布版。**高清未压缩原卷**在另一个仓库：<https://github.com/3456038583-gif/kaoyan-math-site-hd>（页眉的「高清原卷」按钮直达）。
+> 本仓库收录的是**未压缩的高清原卷 PDF**。另有一个经过压缩、可直接在线访问的版本：<https://github.com/3456038583-gif/kaoyan-math-site>（线上地址 <https://math.feikntn111.us.ci>）。
 
 ## 功能
 
@@ -16,9 +14,10 @@
 - **关键题**：一键只看标记为重点的题目
 - **错题本**：标记错题，数据存 `localStorage`（`file://` 下同样可用）
 - **成绩记录**：按年份、科目记录自己的分数；选填题号可一键全选再点掉做错的，解答题逐题填分，未标记的题按 0 分计
-- **同题同步**：数一 / 数二 / 数三里题干完全相同的题，可一键复制另一科已记的分数，或整卷同步
+- **同题自动同步**：数一 / 数二 / 数三里题干完全相同的题，在任一科改了分数，其他科的同一道题会自动跟着改
+- **同题标签**：题干与同年其他试卷重复时，在题号旁标出各卷题号（如 数一3 · 数二2 · 数三4），悬停可看完整说明
 - **成绩统计**：按科目汇总总分、选择、填空、选填、大题、高数、线代、概率的平均分与得分率，标注各年满分范围，并绘制逐年趋势图
-- **公式渲染**：KaTeX 本地化，离线可用
+- **公式渲染**：KaTeX（本仓库通过 CDN 加载，首次打开需联网）
 - **原卷对照**：题目卡片可打开对应年份的真题 / 解析 PDF
 - **题型自动适配**：2021 年改革前后（8+6+9 与 10+6+6）分别呈现
 
@@ -30,20 +29,22 @@ app.js            渲染与交互逻辑
 data.js           汇总入口 + 年份清单 + 按年懒加载器
 dataYYYY.js       各年份题库（题目、考点、难度、答案要点）
 metaYYYY.js       各年份元信息（试卷结构、分值）
-pdfs/YYYY/        真题与解析 PDF（每年 m1/m2/m3 的 paper 与 sol，部分年份含 review）
-pdfs/supplement/  补充题（试卷 + 解析）
+pdfs/YYYY/        真题与解析 PDF 高清原卷（每年 m1/m2/m3 的 paper 与 sol，部分年份含 review）
+pdfs/supplement/  补充题（数一补充试卷；解析见下方 Release）
 figs/             题目配图
-vendor/katex/     KaTeX（本地化，离线可用）
-wrangler.jsonc    Cloudflare Workers 静态资源部署配置
 ```
 
-## 性能
+## 打包下载（Release）
 
-- **按年懒加载**：首屏只载入当前年份的题库，其余年份点选时再拉取（`data.js` 里的 `loadYear`），首屏脚本从 1.1MB / 36 个请求降到约 350KB / 5 个请求。
-- **复用已渲染节点**：切回看过的年份时直接复用那份 DOM，不重建页面、不重排公式。
-- **筛选不重建**：难度与「只看重点」只切换题目卡的显隐，不做整页重绘。
-- **字体非阻塞**：Google Fonts 用 `media="print" onload` 异步加载，先用系统字体出字。
-- **长缓存**：`_headers` 给 `pdfs/` 与 `vendor/` 设置一年期缓存。
+不想 clone 整个仓库的话，可以直接从 Release 下载打包好的 PDF：
+
+<https://github.com/3456038583-gif/kaoyan-math-site-hd/releases/latest>
+
+- `kaoyan-math-papers-2010-2026.zip`（历年真题 · 试卷）—— 17 年三科真题试卷，约 190 MB
+- `kaoyan-math-solutions-2010-2026.zip`（历年真题 · 解析）—— 17 年三科真题解析，约 645 MB
+- `kaoyan-math-reviews-2010-2026.zip`（真题评价）—— 17 套「真题评价 & 重点题」PDF，约 41 MB
+
+另外，`pdfs/supplement/m1-supplement-sol.pdf` 有 **140 MB / 335 页**，超过 GitHub 单文件 100 MB 的硬性上限，没有放进仓库，也在 Release 里单独放了一份（解析压缩包里已经包含）。下载后放进 `pdfs/supplement/` 目录即可，网页里的链接会自动生效。
 
 ## 本地运行
 
@@ -54,19 +55,7 @@ python3 -m http.server 8000
 # 浏览器访问 http://localhost:8000
 ```
 
-## 部署
-
-站点当前部署在 Cloudflare（Workers 静态资源）：
-
-```bash
-NODE_OPTIONS=--dns-result-order=ipv4first npx wrangler@latest deploy
-```
-
-> 这台机器上 Node 解析 IPv6 会导致 wrangler `fetch failed`，需要加 `--dns-result-order=ipv4first`。
-
-自定义域名在 `wrangler.jsonc` 的 `routes` 中通过 `custom_domain: true` 绑定。
-
 ## 说明
 
-- 仓库内的 PDF 经过压缩（ghostscript `/ebook`，补充题解析单独降至 115dpi/JPEG q62），以便通过托管平台的单文件体积限制；如需高清原卷请另行获取。
+- 仓库约 900 MB，克隆会比较慢；只想看网页的话用 `--depth 1` 即可：`git clone --depth 1 <仓库地址>`。
 - 真题与解析 PDF 版权归原作者及出版方所有，本仓库仅用于个人学习与检索，请勿用于商业用途。题目文本、考点标注与网页代码为本项目整理成果。
