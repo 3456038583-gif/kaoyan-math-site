@@ -623,6 +623,7 @@
         </div>
         <span class="scorestatus" data-score-status></span>
       </div>
+      ${migrateBlockHTML()}
     </section>`;
   }
 
@@ -1950,6 +1951,31 @@
 
   /* ── 事件 ── */
   appEl.addEventListener('click', e => {
+    const syncBridge = e.target.closest('[data-sync-bridge]');
+    if (syncBridge) {
+      const ep = syncEndpoint();
+      if (ep.isHub) {
+        // 先跳到数学站，它会把本机记录打包带回到这里
+        const u = new URL(ep.src, location.href);
+        u.hash = '';
+        u.searchParams.set('pullTo', location.origin + location.pathname);
+        location.href = u.href;
+      } else {
+        syncPushTo(ep.hub);
+      }
+      return;
+    }
+    if (e.target.closest('[data-sync-export]')) {
+      syncDownload();
+      return;
+    }
+    const syncImport = e.target.closest('[data-sync-import]');
+    if (syncImport) {
+      const box = syncImport.closest('[data-scorecard]');
+      const file = box && box.querySelector('[data-sync-file]');
+      if (file) file.click();
+      return;
+    }
     const mockSubj = e.target.closest('[data-mock-subj]');
     if (mockSubj) {
       const s = Number(mockSubj.dataset.mockSubj);
@@ -2384,6 +2410,24 @@
     if (synced && card) setScoreStatus(card, `第 ${n} 题已自动同步到 ${synced} 道同题。`);
   });
 
+  // 选中导出的 json 文件后导入
+  appEl.addEventListener('change', e => {
+    const file = e.target.closest('[data-sync-file]');
+    if (!file || !file.files || !file.files[0]) return;
+    const card = file.closest('[data-scorecard]');
+    const status = card && card.querySelector('[data-sync-status]');
+    syncReadFile(file.files[0], pack => {
+      if (!pack || !pack.data) {
+        if (status) status.textContent = '这个文件里没有可导入的成绩记录';
+        return;
+      }
+      runSyncImport(pack, () => {
+        if (status) status.textContent = '没有新的记录可导入（可能已经导入过）';
+      });
+    });
+    file.value = '';
+  });
+
   // 失焦时把越界或只写了一半的数字回填成实际存下的分数
   appEl.addEventListener('focusout', e => {
     const mockInp = e.target.closest('[data-mock-big]');
@@ -2448,8 +2492,235 @@
     if (e.key === 'Escape' && !sheetEl.hidden) closePdf();
   });
 
+  /* ── 数据迁移：把本机的成绩、模拟卷、错题搬到另一个站点 ──
+     数据只在浏览器里流转：要么走地址栏片段（# 后面的内容不会发给服务器），
+     要么走本地 json 文件。导出只读，不会改动当前站点已有的记录。 */
+  const SYNC_VERSION = 1;
+  const SYNC_BANNER_KEY = 'kaoyanMath.sync.banner';
+  const SYNC_HUB_URL = 'https://kaoyan.feikntn111.us.ci/math/';
+  const SYNC_MATH_URL = 'https://math.feikntn111.us.ci/';
+  const SYNC_KEYS = [SCORE_STORE_KEY, MOCK_KEY, WRONG_KEY];
+
+  const b64encode = str => {
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(bin);
+  };
+  const b64decode = str => {
+    const bin = atob(str);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  };
+
+  // 当前页是总库的数学页，还是独立的数学站（可用 ?syncTarget= / ?syncSource= 覆盖，便于本地调试）
+  // 注意：renderNow() 会把 ?view=&year= 之外的参数从地址栏抹掉，所以要在启动前先读一遍
+  const SYNC_PARAMS = new URLSearchParams(location.search);
+  function syncEndpoint() {
+    return {
+      isHub: /^\/math(\/|$)/.test(location.pathname),
+      hub: SYNC_PARAMS.get('syncTarget') || SYNC_HUB_URL,
+      src: SYNC_PARAMS.get('syncSource') || SYNC_MATH_URL
+    };
+  }
+
+  function collectSyncData() {
+    const data = {};
+    for (const k of SYNC_KEYS) {
+      const v = localStorage.getItem(k);
+      if (v !== null) data[k] = v;
+    }
+    return data;
+  }
+
+  const syncSourceName = () => (location.protocol === 'file:' ? '本机文件' : location.host);
+
+  function syncEnvelope() {
+    return { v: SYNC_VERSION, from: syncSourceName(), at: Date.now(), data: collectSyncData() };
+  }
+
+  const countOf = o => (o && typeof o === 'object' ? Object.keys(o).length : 0);
+  const readStore = (key, fallback) => {
+    try {
+      const v = JSON.parse(localStorage.getItem(key) || 'null');
+      return v === null ? fallback : v;
+    } catch (e) {
+      return fallback;
+    }
+  };
+
+  // 合并原则：来源里有分数的题以来源为准，本机独有的记录保留不删
+  function mergeScoreStore(incoming) {
+    const cur = readStore(SCORE_STORE_KEY, {}) || {};
+    let changed = 0;
+    for (const [k, rec] of Object.entries(incoming && typeof incoming === 'object' ? incoming : {})) {
+      if (!/^\d{4}-[123]$/.test(k) || !rec || typeof rec !== 'object') continue;
+      const tgt = cur[k] && typeof cur[k] === 'object' ? cur[k] : (cur[k] = { sel: {}, big: {}, touched: rec.touched !== false });
+      if (!tgt.sel || typeof tgt.sel !== 'object') tgt.sel = {};
+      if (!tgt.big || typeof tgt.big !== 'object') tgt.big = {};
+      for (const [n, v] of Object.entries(rec.sel || {})) {
+        if ((v === 0 || v === 1) && tgt.sel[n] !== v) { tgt.sel[n] = v; changed++; }
+      }
+      for (const [n, v] of Object.entries(rec.big || {})) {
+        const num = Number(v);
+        if (Number.isFinite(num) && tgt.big[n] !== num) { tgt.big[n] = num; changed++; }
+      }
+      if (rec.touched !== false) tgt.touched = true;
+    }
+    if (changed) localStorage.setItem(SCORE_STORE_KEY, JSON.stringify(cur));
+    return changed;
+  }
+
+  function mergeMockStore(incoming) {
+    const cur = readStore(MOCK_KEY, []);
+    const list = Array.isArray(cur) ? cur : [];
+    const ids = new Set(list.map(m => m && m.id));
+    let changed = 0;
+    for (const m of Array.isArray(incoming) ? incoming : []) {
+      if (!m || !m.id || ids.has(m.id)) continue;
+      if (!m.name || !m.subject) continue;
+      list.push(m);
+      ids.add(m.id);
+      changed++;
+    }
+    if (changed) localStorage.setItem(MOCK_KEY, JSON.stringify(list));
+    return changed;
+  }
+
+  function mergeWrongStore(incoming) {
+    const cur = readStore(WRONG_KEY, []);
+    const set = new Set((Array.isArray(cur) ? cur : []).filter(k => typeof k === 'string'));
+    let changed = 0;
+    for (const k of Array.isArray(incoming) ? incoming : []) {
+      if (typeof k === 'string' && /^\d{4}-[123]-\d+$/.test(k) && !set.has(k)) { set.add(k); changed++; }
+    }
+    if (changed) localStorage.setItem(WRONG_KEY, JSON.stringify([...set]));
+    return changed;
+  }
+
+  function applySyncEnvelope(pack) {
+    const data = (pack && pack.data) || {};
+    const res = { score: 0, mocks: 0, wrong: 0 };
+    try { if (data[SCORE_STORE_KEY]) res.score = mergeScoreStore(JSON.parse(data[SCORE_STORE_KEY])); } catch (e) { /* 跳过坏数据 */ }
+    try { if (data[MOCK_KEY]) res.mocks = mergeMockStore(JSON.parse(data[MOCK_KEY])); } catch (e) { /* 同上 */ }
+    try { if (data[WRONG_KEY]) res.wrong = mergeWrongStore(JSON.parse(data[WRONG_KEY])); } catch (e) { /* 同上 */ }
+    return res;
+  }
+
+  function syncToast(text) {
+    const box = document.createElement('div');
+    box.setAttribute('role', 'status');
+    box.style.cssText = [
+      'position:fixed', 'left:50%', 'top:18px', 'transform:translateX(-50%)', 'z-index:9999',
+      'max-width:min(92vw,560px)', 'padding:11px 16px', 'border-radius:12px',
+      'background:#1b211d', 'color:#fffdf8', 'font:13px/1.55 "Noto Sans SC",-apple-system,"PingFang SC",sans-serif',
+      'box-shadow:0 10px 30px rgba(0,0,0,.22)'
+    ].join(';');
+    box.textContent = text;
+    document.body.appendChild(box);
+    setTimeout(() => box.remove(), 9000);
+  }
+
+  function showSyncBanner() {
+    let info = null;
+    try { info = JSON.parse(sessionStorage.getItem(SYNC_BANNER_KEY) || 'null'); } catch (e) { return; }
+    if (!info) return;
+    try { sessionStorage.removeItem(SYNC_BANNER_KEY); } catch (e) { /* 忽略 */ }
+    const from = info.from ? ` ${info.from} ` : '';
+    syncToast(`已从${from}导入：成绩 ${info.score} 项 · 模拟卷 ${info.mocks} 套 · 错题 ${info.wrong} 道`);
+  }
+
+  function runSyncImport(pack, onEmpty) {
+    const res = applySyncEnvelope(pack);
+    if (!res.score && !res.mocks && !res.wrong) {
+      if (onEmpty) onEmpty();
+      return 0;
+    }
+    try {
+      sessionStorage.setItem(SYNC_BANNER_KEY, JSON.stringify({
+        score: res.score, mocks: res.mocks, wrong: res.wrong, from: (pack && pack.from) || ''
+      }));
+    } catch (e) { /* 忽略 */ }
+    location.reload();
+    return res.score + res.mocks + res.wrong;
+  }
+
+  // 地址栏里带了 #sync=... 就导入（导入后立刻把片段从地址栏抹掉，避免被复制分享出去）
+  function syncFromHash() {
+    const m = /[#&]sync=([^&]+)/.exec(location.hash || '');
+    if (!m) return false;
+    let pack = null;
+    try { pack = JSON.parse(b64decode(decodeURIComponent(m[1]))); } catch (e) { pack = null; }
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* 忽略 */ }
+    if (!pack || pack.v !== SYNC_VERSION || !pack.data || !countOf(pack.data)) return false;
+    const ok = window.confirm(
+      `检测到来自「${pack.from || '另一个站点'}」的成绩记录。\n\n` +
+      '导入会与本机现有记录合并：来源里有分数的题以来源为准，本机独有的记录保留。\n' +
+      '不会修改另一个站点的数据。\n\n继续导入？'
+    );
+    if (!ok) return false;
+    runSyncImport(pack);
+    return true;
+  }
+
+  function syncPushTo(targetUrl) {
+    const payload = encodeURIComponent(b64encode(JSON.stringify(syncEnvelope())));
+    location.href = targetUrl.replace(/#.*$/, '') + '#sync=' + payload;
+  }
+
+  function syncDownload() {
+    const text = JSON.stringify(syncEnvelope(), null, 2);
+    const blob = new Blob([text], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `kaoyan-math-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  }
+
+  function syncReadFile(file, done) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      let pack = null;
+      try { pack = JSON.parse(String(reader.result)); } catch (e) { pack = null; }
+      done(pack);
+    };
+    reader.readAsText(file);
+  }
+
+  function migrateBlockHTML() {
+    const ep = syncEndpoint();
+    const label = ep.isHub ? '从数学站导入' : '迁移到总库';
+    const title = ep.isHub
+      ? '打开 math.feikntn111.us.ci，把那里的成绩、模拟卷和错题带过来'
+      : '把这里填过的成绩、模拟卷和错题带到总库的数学页';
+    return `<div class="scorefoot migrate">
+        <span>换站迁移：把本机在另一个站点记录的成绩、模拟卷和错题带过来。数据只在浏览器里流转（不进服务器），原站点的记录不会被改动。</span>
+        <div class="scorefoot-btns">
+          <button class="minibtn" type="button" data-sync-bridge title="${attr(title)}">${label}</button>
+          <button class="minibtn" type="button" data-sync-export title="导出成 json 文件，用于备份或换设备">导出文件</button>
+          <button class="minibtn" type="button" data-sync-import title="选择之前导出的 json 文件">导入文件</button>
+        </div>
+        <input type="file" accept="application/json,.json" data-sync-file hidden>
+        <span class="scorestatus" data-sync-status></span>
+      </div>`;
+  }
+
+  /* ── 数据迁移结束 ── */
+
   /* ── 启动 ── */
   const params = new URLSearchParams(location.search);
+  // 数学站被总库叫来取数据：打包后跳回总库，片段不会被发到服务器
+  const pullTo = params.get('pullTo');
+  if (pullTo && /^https?:\/\//i.test(pullTo)) {
+    location.replace(pullTo.replace(/#.*$/, '') + '#sync=' + encodeURIComponent(b64encode(JSON.stringify(syncEnvelope()))));
+    return;
+  }
+  if (syncFromHash()) return;
   const pv = params.get('view');
   if (pv && ['m1', 'm2', 'm3', 'key', 'supp', 'wrong', 'stats', 'mock'].includes(pv)) state.view = pv;
   const ps = Number(params.get('subj'));
@@ -2466,6 +2737,7 @@
   updateWrongBadge();
   render();
   if (hash) jumpTo(Number(hash[1]), Number(hash[2]), Number(hash[3]));
+  showSyncBanner();
 })();
 
 /* 页脚 Star 计数：离线或接口失败时只显示「给个 Star」 */
