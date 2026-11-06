@@ -40,23 +40,24 @@
   const paperKey = (year, subject) => `${year}-${subject}`;
 
   const SCORE_STORE_KEY = 'kaoyanMath.scores.v1';
-  // 选填题改为按「分数」记录：0—5 分可以填任意值，做对就是满分。
-  // 旧记录里只有 1（做对）和 0（做错），读取时换算一次，然后落下 scoreVer 标记。
+  // 选填题只记对错：1 = 做对（照满分计），0 = 做错。
+  // v4：之前短暂试过「选填按分数记」，读到分数时统一折回对/错。
   const SCORE_VER_KEY = 'kaoyanMath.scoreVer';
   let LEGACY_SEL = true;
-  try { LEGACY_SEL = localStorage.getItem(SCORE_VER_KEY) !== '2'; } catch (e) { LEGACY_SEL = false; }
+  try { LEGACY_SEL = localStorage.getItem(SCORE_VER_KEY) !== '4'; } catch (e) { LEGACY_SEL = false; }
   const selScore = (year, n, v) => {
-    const max = qMax(year, n);
     const num = Number(v);
     if (!Number.isFinite(num)) return undefined;
-    if (LEGACY_SEL && num === 1) return max;
-    return Math.min(max, Math.max(0, num));
+    return num > 0 ? 1 : 0;
   };
   const SCORES = {};
   (function loadScores() {
+    let failed = false;
+    let RAW_SCORES = {};
     try {
       const raw = JSON.parse(localStorage.getItem(SCORE_STORE_KEY) || 'null');
       if (!raw || typeof raw !== 'object') return;
+      RAW_SCORES = raw;
       for (const [k, rec] of Object.entries(raw)) {
         const m = /^(\d{4})-([123])$/.exec(k);
         if (!m || !rec || typeof rec !== 'object') continue;
@@ -86,11 +87,15 @@
         if (Object.keys(clean.sel).length || Object.keys(clean.big).length) SCORES[k] = clean;
       }
     } catch (e) {
-      // 隐私模式或禁用存储时，仅本次会话有效
+      failed = true;   // 读坏了就别回写，免得把原有记录冲掉
     } finally {
-      // 即使没有旧记录也要落标记，否则之后新记的「1 分」会被当成旧的「做对」
-      if (LEGACY_SEL) {
-        try { localStorage.setItem(SCORE_VER_KEY, '2'); } catch (e) { /* 隐私模式忽略 */ }
+      if (!failed && LEGACY_SEL) {
+        try {
+          // 换算结果必须落盘：只改内存的话，下次打开会把 1 当成 1 分
+          const out = Object.assign({}, RAW_SCORES, SCORES);
+          if (Object.keys(out).length) localStorage.setItem(SCORE_STORE_KEY, JSON.stringify(out));
+          localStorage.setItem(SCORE_VER_KEY, '4');
+        } catch (e) { /* 隐私模式忽略 */ }
       }
     }
   })();
@@ -254,7 +259,7 @@
       const isBig = kind === 'big';
       const raw = rec ? (isBig ? rec.big[q.n] : rec.sel[q.n]) : undefined;
       const has = raw !== undefined;
-      const got = !has ? 0 : Math.min(max, Math.max(0, Number(raw) || 0));
+      const got = !has ? 0 : isBig ? Math.min(max, Math.max(0, raw)) : (raw ? max : 0);
       for (const key of [kind, q.m]) {
         const c = cats[key];
         if (!c) continue;
@@ -262,7 +267,7 @@
         c.score += got;
         c.count++;
         if (has) { c.any = true; c.set++; }
-        if (!isBig && raw >= max) c.correct++;
+        if (!isBig && raw === 1) c.correct++;
       }
     }
     const merge = (a, b) => ({
@@ -406,8 +411,7 @@
       const val = rec ? (kind === 'big' ? rec.big[o.q.n] : rec.sel[o.q.n]) : undefined;
       if (val === undefined) return `${shortSubj(o.subject)} ${o.q.n}`;
       if (kind === 'big') return `${shortSubj(o.subject)} ${o.q.n}（${fmtScore(val)} 分）`;
-      if (val >= qMax(year, o.q.n)) return `${shortSubj(o.subject)} ${o.q.n}（对）`;
-      return `${shortSubj(o.subject)} ${o.q.n}（${fmtScore(val)} 分）`;
+      return `${shortSubj(o.subject)} ${o.q.n}（${val === 1 ? '对' : '错'}）`;
     });
     return parts.length ? ` · 同题 ${parts.join('、')}` : '';
   }
@@ -436,9 +440,8 @@
         if (isBig) delete rec.big[t.n]; else delete rec.sel[t.n];
       } else {
         const target = ensureScoreRec(year, t.subject, false);
-        const max = qMax(year, t.n);
-        if (isBig) target.big[t.n] = Math.min(max, Math.max(0, value));
-        else target.sel[t.n] = Math.min(max, Math.max(0, value));
+        if (isBig) target.big[t.n] = Math.min(qMax(year, t.n), Math.max(0, value));
+        else target.sel[t.n] = value;
       }
       pruneScoreRec(year, t.subject);
       changed++;
@@ -476,9 +479,8 @@
         const val = kind === 'big' ? src.big[o.q.n] : src.sel[o.q.n];
         if (val === undefined) continue;
         const rec = ensureScoreRec(year, subject);
-        const max = qMax(year, q.n);
-        if (kind === 'big') rec.big[q.n] = Math.min(max, Math.max(0, val));
-        else rec.sel[q.n] = Math.min(max, Math.max(0, val));
+        if (kind === 'big') rec.big[q.n] = Math.min(qMax(year, q.n), Math.max(0, val));
+        else rec.sel[q.n] = val;
         count++;
         bySource[o.subject]++;
         break; // 数二、数三都有同题时取先找到的一条
@@ -557,20 +559,153 @@
   // 整段都是积分/求和这类带上下限的式子时，嵌套的上下限会很小，整体放大一点才接近试卷排版
   const bigOpt = t => !/[一-鿿]/.test(t) && /\\(?:i{1,3}nt|oint|sum|prod|lim)/.test(t);
 
+  /* ── 计时器：选填整体一个、大题每题一个，模拟卷同理 ── */
+  // 每项存累计毫秒 acc 和本轮起点 at（null = 暂停中）。页面关掉再打开按时间戳接着走。
+  const TIMER_KEY = 'kaoyanMath.timers.v1';
+  const TIMERS = {};
+  (function loadTimers() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(TIMER_KEY) || 'null');
+      if (!raw || typeof raw !== 'object') return;
+      for (const [k, t] of Object.entries(raw)) {
+        if (!t || typeof t !== 'object') continue;
+        const acc = Number(t.acc);
+        if (!Number.isFinite(acc) || acc < 0) continue;
+        const at = Number(t.at) || null;
+        const beat = Number(t.savedAt) || at;
+        const item = { acc: acc, at: at };
+        // 关掉页面很久才回来：没有心跳的那段时间不算进用时
+        if (item.at && Date.now() - beat > 120000) {
+          item.acc += Math.max(0, beat - item.at);
+          item.at = null;
+        }
+        TIMERS[k] = item;
+      }
+    } catch (e) { /* 隐私模式忽略 */ }
+  })();
+  function saveTimers() {
+    try {
+      const out = {};
+      for (const [k, t] of Object.entries(TIMERS)) {
+        if (!t.acc && !t.at) continue;
+        out[k] = { acc: Math.round(t.acc), at: t.at, savedAt: Date.now() };
+      }
+      localStorage.setItem(TIMER_KEY, JSON.stringify(out));
+    } catch (e) { /* 忽略 */ }
+  }
+  const timerElapsed = t => (t ? t.acc + (t.at ? Date.now() - t.at : 0) : 0);
+  const timerScope = key => String(key).split('|')[0];
+  const mockScope = mock => `mock:${mock.id}`;
+  const timerSum = scope => Object.entries(TIMERS)
+    .filter(([k]) => timerScope(k) === scope)
+    .reduce((sum, [, t]) => sum + timerElapsed(t), 0);
+  const fmtClock = ms => {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor(total % 3600 / 60);
+    const sec = total % 60;
+    const p = v => String(v).padStart(2, '0');
+    return h ? `${h}:${p(m)}:${p(sec)}` : `${p(m)}:${p(sec)}`;
+  };
+
+  function timerHTML(key, label, text) {
+    const t = TIMERS[key];
+    const run = !!(t && t.at);
+    return `<span class="qtimer${run ? ' is-run' : ''}" data-timer="${attr(key)}" title="${attr(label)}">` +
+      (text ? `<span class="qtimer-lab">${esc(text)}</span>` : '') +
+      `<span class="qtimer-time">${fmtClock(timerElapsed(t))}</span>` +
+      `<button class="qtimer-btn" type="button" data-timer-toggle aria-pressed="${run}" aria-label="${run ? '暂停计时' : '开始计时'}">${run ? '❚❚' : '▶'}</button>` +
+      `<button class="qtimer-btn reset" type="button" data-timer-reset aria-label="重置计时" title="重置为 00:00">↺</button>` +
+      `</span>`;
+  }
+  function paintTimer(el) {
+    const key = el.dataset.timer;
+    const t = TIMERS[key];
+    const run = !!(t && t.at);
+    const timeEl = el.querySelector('.qtimer-time');
+    if (timeEl) timeEl.textContent = fmtClock(timerElapsed(t));
+    el.classList.toggle('is-run', run);
+    const btn = el.querySelector('[data-timer-toggle]');
+    if (btn) {
+      btn.textContent = run ? '❚❚' : '▶';
+      btn.setAttribute('aria-pressed', String(run));
+      btn.setAttribute('aria-label', run ? '暂停计时' : '开始计时');
+    }
+  }
+  function paintTimers() {
+    for (const el of appEl.querySelectorAll('[data-timer]')) paintTimer(el);
+    const box = appEl.querySelector('[data-scorefloat]');
+    if (box) {
+      const el = box.querySelector('[data-sf="time"]');
+      if (el) el.textContent = fmtClock(timerSum(`${box.dataset.year}-${box.dataset.subject}`));
+    }
+    for (const el of appEl.querySelectorAll('[data-mock-time]')) {
+      const card = el.closest('[data-mockcard]');
+      if (card) el.textContent = fmtClock(timerSum(`mock:${card.dataset.mockId}`));
+    }
+  }
+  function startTimer(key) {
+    const t = TIMERS[key] || (TIMERS[key] = { acc: 0, at: null });
+    if (t.at) return;
+    // 同一份卷同时只走一个计时器，否则整卷用时会把重叠的部分算两遍
+    const scope = timerScope(key);
+    for (const [k, o] of Object.entries(TIMERS)) {
+      if (k !== key && timerScope(k) === scope && o.at) {
+        o.acc += Date.now() - o.at;
+        o.at = null;
+      }
+    }
+    t.at = Date.now();
+    saveTimers();
+    paintTimers();
+  }
+  function pauseTimer(key) {
+    const t = TIMERS[key];
+    if (!t || !t.at) return;
+    t.acc += Date.now() - t.at;
+    t.at = null;
+    saveTimers();
+    paintTimers();
+  }
+  function resetTimer(key) {
+    if (!TIMERS[key]) return;
+    delete TIMERS[key];
+    saveTimers();
+    paintTimers();
+  }
+  const toggleTimer = key => {
+    const t = TIMERS[key];
+    if (t && t.at) pauseTimer(key); else startTimer(key);
+  };
+  setInterval(() => {
+    if (!appEl.querySelector('[data-timer], [data-scorefloat], [data-mock-time]')) return;
+    paintTimers();
+  }, 1000);
+  // 运行中每 5 秒落一次心跳，刷新后能判断是「还在用」还是「关了页面」
+  setInterval(() => {
+    if (Object.values(TIMERS).some(t => t.at)) saveTimers();
+  }, 5000);
+
   /* ── 我的成绩面板 ── */
   const attr = s => esc(s).replace(/"/g, '&quot;');
 
-  // 逐题精析里每题都能直接填分：选择/填空做对就填满分，解答题按步给分
+  // 逐题精析里每题都能直接记：选填只标对错，解答题按步填分
   function scoreBoxHTML(year, subject, q, opts) {
     if (!opts || !opts.score) return '';
     const big = qKind(year, q.n) === 'big';
     const max = qMax(year, q.n);
     const rec = scoreRec(year, subject);
-    const v = rec ? (big ? rec.big[q.n] : rec.sel[q.n]) : undefined;
-    const data = big ? `data-qbig="${year},${subject},${q.n}"` : `data-qsel="${year},${subject},${q.n}"`;
-    return `<span class="qscore${big ? '' : ' qscore-sel'}" title="第 ${q.n} 题得分，与顶部「我的成绩」同步">
+    if (!big) {
+      const v = rec ? rec.sel[q.n] : undefined;
+      return `<span class="qjudge" data-qsel="${year},${subject},${q.n}" role="group" aria-label="第 ${q.n} 题对错，与顶部「我的成绩」同步">
+        <button class="qjudge-btn ok${v === 1 ? ' is-on' : ''}" type="button" data-sel-mark="1" aria-pressed="${v === 1}" title="第 ${q.n} 题做对（${max} 分）">✓</button>
+        <button class="qjudge-btn no${v === 0 ? ' is-on' : ''}" type="button" data-sel-mark="0" aria-pressed="${v === 0}" title="第 ${q.n} 题做错">✗</button>
+      </span>`;
+    }
+    const v = rec ? rec.big[q.n] : undefined;
+    return `<span class="qscore" title="第 ${q.n} 题得分，与顶部「我的成绩」同步">
       <span class="qscore-lab">得分</span>
-      <input type="number" inputmode="decimal" min="0" max="${max}" step="0.5" placeholder="—" value="${v === undefined ? '' : fmtScore(v)}" ${data} aria-label="第 ${q.n} 题得分，满分 ${max} 分">
+      <input type="number" inputmode="decimal" min="0" max="${max}" step="0.5" placeholder="—" value="${v === undefined ? '' : fmtScore(v)}" data-qbig="${year},${subject},${q.n}" aria-label="第 ${q.n} 题得分，满分 ${max} 分">
       <span class="qscore-max">/ ${max}</span>
     </span>`;
   }
@@ -585,11 +720,9 @@
 
     const chip = q => {
       const v = rec ? rec.sel[q.n] : undefined;
-      const max = qMax(year, q.n);
-      const cls = v === undefined ? '' : v === 0 ? ' is-wrong' : v >= max ? '' : ' is-part';
-      const got = v === undefined ? '' : ` · 已记 ${fmtScore(v)} 分`;
+      const got = v === undefined ? '' : v === 1 ? ' · 做对' : ' · 做错';
       const title = `${q.n} 题 · ${q.m} · ${attr(q.t)}${got}${sameQuestionHint(year, subject, q)}`;
-      return `<button class="qsbtn${cls}" type="button" data-score-q="${q.n}" aria-pressed="${v !== undefined && v >= max}" title="${title}">${q.n}</button>`;
+      return `<button class="qsbtn${v === 0 ? ' is-wrong' : ''}" type="button" data-score-q="${q.n}" aria-pressed="${v === 1}" title="${title}">${q.n}</button>`;
     };
 
     const bigRows = bigQs.map(q => {
@@ -693,6 +826,7 @@
       <div class="sf-top"><span>本卷得分</span><b data-sf="total">${fmtScore(c.total.score)}</b><i>/ ${c.total.max}</i></div>
       <div class="sf-line"><span>选填</span><b data-sf="sel">${fmtScore(c.sel.score)}</b><i>/ ${c.sel.max}</i></div>
       <div class="sf-line"><span>大题</span><b data-sf="big">${fmtScore(c.big.score)}</b><i>/ ${c.big.max}</i></div>
+      <div class="sf-line"><span>用时</span><b data-sf="time">${fmtClock(timerSum(paperKey(year, subject)))}</b></div>
       <div class="sf-bar"><i data-sf="bar" style="width:${pct.toFixed(1)}%"></i></div>
     </aside>`;
   }
@@ -714,21 +848,20 @@
 
   /* 分数有两个入口：顶部成绩面板与题目卡片。任改一处都要同步到另一处 */
   const cardScoreSel = (year, subject, n) =>
-    `[data-score-big="${n}"], [data-qbig="${year},${subject},${n}"], [data-qsel="${year},${subject},${n}"]`;
+    `[data-score-big="${n}"], [data-qbig="${year},${subject},${n}"]`;
   function cardScoreCtx(el) {
-    const raw = el.dataset.qbig || el.dataset.qsel;
+    const raw = el.dataset.qbig;
     if (raw) {
       const [y, s, n] = raw.split(',').map(Number);
       if (!y || !s || !n) return null;
-      return { year: y, subject: s, n: n, kind: el.dataset.qbig ? 'big' : 'sel' };
+      return { year: y, subject: s, n: n };
     }
     const card = el.closest('[data-scorecard]');
     if (!card) return null;
     return {
       year: Number(card.dataset.year),
       subject: Number(card.dataset.subject),
-      n: Number(el.dataset.scoreBig),
-      kind: 'big'
+      n: Number(el.dataset.scoreBig)
     };
   }
   // except：正在输入的那个框不回填，避免打断「12.」这类中间状态
@@ -741,26 +874,47 @@
     const card = appEl.querySelector('[data-scorecard]');
     if (card) updateScoreSums(card, year, subject);
   }
-  // 选填题在面板里只有题号格子，改分后把格子状态一起更新
-  function syncSelChip(year, n, v) {
-    const btn = appEl.querySelector(`[data-score-q="${n}"]`);
-    if (!btn) return;
-    const max = qMax(year, n);
-    btn.classList.toggle('is-wrong', v !== undefined && v === 0);
-    btn.classList.toggle('is-part', v !== undefined && v > 0 && v < max);
-    btn.setAttribute('aria-pressed', String(v !== undefined && v >= max));
+  // 选填：题目卡片上的对/错按钮与面板题号格保持同一状态
+  function paintSelMarks(year, subject, n, v) {
+    for (const box of appEl.querySelectorAll(`[data-qsel="${year},${subject},${n}"]`)) {
+      for (const btn of box.querySelectorAll('[data-sel-mark]')) {
+        const on = v !== undefined && Number(btn.dataset.selMark) === v;
+        btn.classList.toggle('is-on', on);
+        btn.setAttribute('aria-pressed', String(on));
+      }
+    }
+  }
+  function syncSelState(year, subject, n, v) {
+    paintSelMarks(year, subject, n, v);
+    const card = appEl.querySelector('[data-scorecard]');
+    if (!card) return;
+    const chip = card.querySelector(`[data-score-q="${n}"]`);
+    if (chip) {
+      chip.classList.toggle('is-wrong', v === 0);
+      chip.setAttribute('aria-pressed', String(v === 1));
+    }
+    updateScoreSums(card, year, subject);
+  }
+  // 全选 / 清空 / 重新渲染后，把页面上所有选填按钮的状态刷一遍
+  function refreshSelButtons(year, subject) {
+    const rec = scoreRec(year, subject);
+    for (const box of appEl.querySelectorAll('[data-qsel]')) {
+      const [y, s, n] = box.dataset.qsel.split(',').map(Number);
+      if (y !== year || s !== subject) continue;
+      paintSelMarks(year, subject, n, rec ? rec.sel[n] : undefined);
+    }
   }
   // 一键全满分、清空、复制、重置后，把卡片上的输入框一起刷新
   function refreshBigCardInputs(year, subject) {
     const rec = scoreRec(year, subject);
-    for (const el of appEl.querySelectorAll('[data-qbig], [data-qsel]')) {
-      const isSel = !!el.dataset.qsel;
-      const [y, s, n] = (isSel ? el.dataset.qsel : el.dataset.qbig).split(',').map(Number);
+    for (const el of appEl.querySelectorAll('[data-qbig]')) {
+      const [y, s, n] = el.dataset.qbig.split(',').map(Number);
       if (y !== year || s !== subject) continue;
-      const v = rec ? (isSel ? rec.sel[n] : rec.big[n]) : undefined;
+      const v = rec ? rec.big[n] : undefined;
       el.value = v === undefined ? '' : fmtScore(v);
       el.classList.toggle('has-val', v !== undefined);
     }
+    refreshSelButtons(year, subject);
   }
 
   /* ── 模拟卷面板 ── */
@@ -812,6 +966,7 @@
         <span class="bigq">${n}</span>
         <span class="bigmeta"><b>${mockModule(mock.subject, n)}</b> · ${max} 分</span>
         <span class="biginput"><input type="number" inputmode="decimal" min="0" max="${max}" step="0.5" placeholder="—" value="${v === undefined ? '' : fmtScore(v)}" data-mock-big="${n}" aria-label="第 ${n} 题得分，满分 ${max} 分"><span class="bigmax">/ ${max}</span></span>
+        ${timerHTML(`${mockScope(mock)}|${n}`, `第 ${n} 题计时`)}
       </div>`;
     }
 
@@ -819,7 +974,7 @@
       <div class="scorecard-head">
         <div>
           <div class="rtitle"><span class="mockname">${esc(mock.name)}</span><span class="mocksub">${SUBJ[mock.subject]}</span></div>
-          <p class="scmeta">${mockDate(mock.created)} 添加 · 满分 <b>150</b> · 选填 <b>80</b> + 大题 <b>70</b></p>
+          <p class="scmeta">${mockDate(mock.created)} 添加 · 满分 <b>150</b> · 选填 <b>80</b> + 大题 <b>70</b> · 用时 <b data-mock-time>${fmtClock(timerSum(mockScope(mock)))}</b></p>
         </div>
         <div class="scorenow"><span>当前得分</span><b data-mock-sum="total">${fmtScore(c.total.score)}</b><i>/ 150</i></div>
       </div>
@@ -831,6 +986,7 @@
           <div class="scbtns">
             <button class="minibtn" type="button" data-mock-all title="只把尚未标记的选填标为做对，已有记录保持不变">全选选填</button>
             <button class="minibtn" type="button" data-mock-clear-sel>清空选填</button>
+            ${timerHTML(`${mockScope(mock)}|sel`, '选填（选择+填空）合计用时，按一个单位计', '选填')}
           </div>
         </div>
         ${chipRows}
@@ -1030,6 +1186,7 @@
         ${key && !opts.inKey ? '<span class="chip key-tag">重点</span>' : ''}
         <span class="qmeta">考点：<b>${safe(q.t)}</b></span>
         ${stars(q.st)}
+        ${opts.score && qKind(year, q.n) === 'big' ? timerHTML(`${paperKey(year, subject)}|${q.n}`, `第 ${q.n} 题计时`) : ''}
         ${scoreBoxHTML(year, subject, q, opts)}
       </div>
       <div class="qtext">${safe(q.x)}</div>
@@ -1143,11 +1300,13 @@
       <span class="fcount">显示 ${paper.length} / ${paper.length} 题</span>
     </div>`;
 
+    // 选择+填空算一个计时单位：两个小组的组头各放一个同样的计时器
+    const selTimer = timerHTML(`${paperKey(year, subject)}|sel`, '选填（选择+填空）合计用时，按一个单位计', '选填');
     const groups = groupsFor(year).map(g => {
       const qs = paper.filter(q => q.n >= g.from && q.n <= g.to);
       if (!qs.length) return '';
       return `<section class="qgroup">
-        <div class="qgroup-head"><h3>${g.title}</h3><span>${g.meta}</span></div>
+        <div class="qgroup-head"><h3>${g.title}</h3><span>${g.meta}</span>${g.to <= 16 ? selTimer : ''}</div>
         ${qs.map(q => renderCard(q, subject, year, { score: true })).join('')}
       </section>`;
     }).join('');
@@ -2162,10 +2321,37 @@
       return;
     }
 
+    const timerBtn = e.target.closest('[data-timer-toggle], [data-timer-reset]');
+    if (timerBtn) {
+      const box = timerBtn.closest('[data-timer]');
+      if (!box) return;
+      if (timerBtn.hasAttribute('data-timer-reset')) resetTimer(box.dataset.timer);
+      else toggleTimer(box.dataset.timer);
+      return;
+    }
+
     const floatBox = e.target.closest('[data-scorefloat]');
     if (floatBox) {
       const panel = appEl.querySelector('[data-scorecard]');
       if (panel) panel.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      return;
+    }
+
+    const selMark = e.target.closest('[data-sel-mark]');
+    if (selMark) {
+      const box = selMark.closest('[data-qsel]');
+      if (!box) return;
+      const [year, subject, n] = box.dataset.qsel.split(',').map(Number);
+      const rec = ensureScoreRec(year, subject);
+      const want = Number(selMark.dataset.selMark);
+      if (rec.sel[n] === want) delete rec.sel[n];   // 再点一次取消
+      else rec.sel[n] = want;
+      const synced = propagateScore(year, subject, n, rec.sel[n], false);
+      pruneScoreRec(year, subject);
+      saveScores();
+      syncSelState(year, subject, n, rec.sel[n]);
+      const card = appEl.querySelector('[data-scorecard]');
+      if (synced && card) setScoreStatus(card, `第 ${n} 题已自动同步到 ${synced} 道同题。`);
       return;
     }
 
@@ -2178,10 +2364,9 @@
       const n = Number(scoreQ.dataset.scoreQ);
       const rec = ensureScoreRec(year, subject);
       const cur = rec.sel[n];
-      const max = qMax(year, n);
-      if (cur !== undefined && cur >= max) rec.sel[n] = 0;
+      if (cur === 1) rec.sel[n] = 0;
       else if (cur === 0) delete rec.sel[n];
-      else rec.sel[n] = max;
+      else rec.sel[n] = 1;
       const synced = propagateScore(year, subject, n, rec.sel[n], false);
       pruneScoreRec(year, subject);
       saveScores();
@@ -2204,9 +2389,9 @@
       for (const q of (PAPERS[paperKey(year, subject)] || [])) {
         if (qKind(year, q.n) === 'big') continue;
         if (rec.sel[q.n] !== undefined) { kept++; continue; }
-        rec.sel[q.n] = qMax(year, q.n);
+        rec.sel[q.n] = 1;
         filled++;
-        synced += propagateScore(year, subject, q.n, rec.sel[q.n], false);
+        synced += propagateScore(year, subject, q.n, 1, false);
       }
       saveScores();
       const fresh = repaintScorecard(card, year, subject);
@@ -2461,31 +2646,28 @@
       refreshMockStats();
       return;
     }
-    const inp = e.target.closest('[data-score-big], [data-qbig], [data-qsel]');
+    const inp = e.target.closest('[data-score-big], [data-qbig]');
     if (!inp) return;
     const ctx = cardScoreCtx(inp);
     if (!ctx) return;
     const year = ctx.year;
     const subject = ctx.subject;
     const n = ctx.n;
-    const isSel = ctx.kind === 'sel';
     const raw = inp.value.trim();
     const rec = ensureScoreRec(year, subject);
-    const bucket = isSel ? rec.sel : rec.big;
     if (raw === '') {
-      delete bucket[n];
+      delete rec.big[n];
     } else {
       const v = Number(raw);
       if (!Number.isFinite(v)) return;
       const clamped = Math.min(qMax(year, n), Math.max(0, v));
-      bucket[n] = clamped;
+      rec.big[n] = clamped;
       if (clamped !== v) inp.value = fmtScore(clamped);
     }
-    const synced = propagateScore(year, subject, n, bucket[n], false);
+    const synced = propagateScore(year, subject, n, rec.big[n], false);
     pruneScoreRec(year, subject);
     saveScores();
-    mirrorCardScore(year, subject, n, bucket[n], inp);
-    if (isSel) syncSelChip(year, n, bucket[n]);
+    mirrorCardScore(year, subject, n, rec.big[n], inp);
     const card = appEl.querySelector('[data-scorecard]');
     if (synced && card) setScoreStatus(card, `第 ${n} 题已自动同步到 ${synced} 道同题。`);
   });
@@ -2519,12 +2701,12 @@
       mockInp.value = v === undefined ? '' : fmtScore(v);
       return;
     }
-    const inp = e.target.closest('[data-score-big], [data-qbig], [data-qsel]');
+    const inp = e.target.closest('[data-score-big], [data-qbig]');
     if (!inp) return;
     const ctx = cardScoreCtx(inp);
     if (!ctx) return;
     const rec = scoreRec(ctx.year, ctx.subject);
-    const v = rec ? (ctx.kind === 'sel' ? rec.sel[ctx.n] : rec.big[ctx.n]) : undefined;
+    const v = rec ? rec.big[ctx.n] : undefined;
     inp.value = v === undefined ? '' : fmtScore(v);
     inp.classList.toggle('has-val', v !== undefined);
   });
@@ -2624,7 +2806,7 @@
   const syncSourceName = () => (location.protocol === 'file:' ? '本机文件' : location.host);
 
   function syncEnvelope() {
-    return { v: SYNC_VERSION, scoreVer: 2, from: syncSourceName(), at: Date.now(), data: collectSyncData() };
+    return { v: SYNC_VERSION, scoreVer: 4, from: syncSourceName(), at: Date.now(), data: collectSyncData() };
   }
 
   const countOf = o => (o && typeof o === 'object' ? Object.keys(o).length : 0);
@@ -2654,7 +2836,7 @@
         const max = qMax(year, qn);
         const num = Number(v);
         if (!Number.isFinite(num)) continue;
-        const sv = legacy && num === 1 ? max : Math.min(max, Math.max(0, num));
+        const sv = num > 0 ? 1 : 0;
         if (tgt.sel[qn] !== sv) { tgt.sel[qn] = sv; changed++; }
       }
       for (const [n, v] of Object.entries(rec.big || {})) {
@@ -2699,7 +2881,7 @@
     const res = { score: 0, mocks: 0, wrong: 0 };
     try {
       if (data[SCORE_STORE_KEY]) {
-        res.score = mergeScoreStore(JSON.parse(data[SCORE_STORE_KEY]), !(pack && pack.scoreVer === 2));
+        res.score = mergeScoreStore(JSON.parse(data[SCORE_STORE_KEY]), !(pack && Number(pack.scoreVer) >= 4));
       }
     } catch (e) { /* 跳过坏数据 */ }
     try { if (data[MOCK_KEY]) res.mocks = mergeMockStore(JSON.parse(data[MOCK_KEY])); } catch (e) { /* 同上 */ }

@@ -985,6 +985,53 @@ main { padding-top: 24px; }
 }
 .qgroup-head span { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
 
+/* 计时器：选填组头、大题题头、模拟卷题行三处共用 */
+.qtimer {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  align-self: center;
+  padding: 1px 2px 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--mask);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.qgroup-head .qtimer { font-size: 11.5px; }
+.qgroup-head .qtimer .qtimer-time { font-size: 11.5px; }
+.qtimer.is-run { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.qtimer-lab { font-family: var(--sans); font-size: 10px; color: var(--muted); margin-right: 2px; }
+.qtimer-time { min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
+.qtimer.is-run .qtimer-time { font-weight: 600; }
+.qtimer-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font-family: var(--mono);
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+}
+.qtimer-btn:hover { background: var(--surface); border-color: var(--line-strong); }
+.qtimer-btn.reset { font-size: 12px; }
+@media (max-width: 640px) {
+  .qtimer { padding-left: 5px; gap: 0; font-size: 10.5px; }
+  .qtimer-time { min-width: 34px; }
+  .qtimer-btn { width: 18px; height: 18px; }
+  .qtimer-lab { font-size: 9.5px; }
+}
+
 /* 题目卡 */
 .qcard {
   background: var(--surface);
@@ -1093,8 +1140,36 @@ main { padding-top: 24px; }
 .qscore input::placeholder { color: var(--line-strong); font-weight: 500; }
 .qscore input.has-val { border-color: var(--accent); color: var(--accent); }
 .qscore-max { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; }
-/* 选填题的得分框比解答题窄一点，题头一行放得下 */
-.qscore-sel input { width: 46px; }
+/* 选填题的对/错标记：点 ✓ 或 ✗ 记录，再点一次取消 */
+.qjudge {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 4px;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--mask);
+}
+.qjudge-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.qjudge-btn:hover { border-color: var(--ink); color: var(--ink); }
+.qjudge-btn.ok.is-on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.qjudge-btn.no.is-on { background: var(--hard-soft); border-color: var(--hard); color: var(--hard); font-weight: 700; }
+@media (max-width: 640px) {
+  .qjudge { padding: 1px 3px; gap: 2px; }
+  .qjudge-btn { width: 22px; height: 22px; font-size: 11px; }
+}
 
 /* 右下角的本卷得分卡：总分 / 选填 / 大题，与「我的成绩」面板实时联动 */
 .scorefloat {
@@ -1128,9 +1203,15 @@ main { padding-top: 24px; }
 .sf-bar { height: 3px; margin-top: 1px; border-radius: 2px; background: var(--mask); overflow: hidden; }
 .sf-bar i { display: block; height: 100%; border-radius: 2px; background: var(--accent); transition: width .3s ease; }
 @media (max-width: 640px) {
-  .scorefloat { right: 10px; bottom: 10px; min-width: 112px; gap: 3px; padding: 8px 10px 7px; border-radius: 10px; }
-  .sf-top b { font-size: 17px; }
-  .sf-line { font-size: 10px; }
+  /* 手机上把浮卡压小一点，尽量少挡住题目卡片底部的按钮 */
+  .scorefloat { right: 8px; bottom: 8px; min-width: 96px; gap: 2px; padding: 7px 9px 6px; border-radius: 9px; opacity: .95; }
+  .sf-top span { font-size: 9px; letter-spacing: .02em; }
+  .sf-top b { font-size: 15px; }
+  .sf-top i { font-size: 9px; }
+  .sf-line { font-size: 9px; gap: 3px; }
+  .sf-line span { flex: 0 0 20px; }
+  .sf-line b { font-size: 10.5px; }
+  .sf-bar { height: 2px; }
 }
 
 .qtext { font-size: 14.5px; line-height: 1.9; overflow-x: auto; overflow-y: hidden; padding: 2px 0 4px; }
@@ -1549,7 +1630,7 @@ footer .mono { font-family: var(--mono); }
   .chart-tip { min-width: 132px; }
 }
 @media print {
-  .navwrap, .pdfbtns, .filters, .ansbtn, .minilink, .headlinks, .qscore, .scorefloat, footer { display: none !important; }
+  .navwrap, .pdfbtns, .filters, .ansbtn, .minilink, .headlinks, .qscore, .scorefloat, .qtimer, footer { display: none !important; }
   body { padding: 0; background: #fff; }
   .qcard, .card { box-shadow: none; break-inside: avoid; }
   .ansbox { display: block !important; }
