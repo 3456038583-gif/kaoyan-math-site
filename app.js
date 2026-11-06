@@ -707,8 +707,13 @@
     for (const el of appEl.querySelectorAll('[data-timer]')) paintTimer(el);
     const box = appEl.querySelector('[data-scorefloat]');
     if (box) {
+      const y = Number(box.dataset.year), s = Number(box.dataset.subject);
       const el = box.querySelector('[data-sf="time"]');
-      if (el) el.textContent = fmtClock(timerSum(`${box.dataset.year}-${box.dataset.subject}`));
+      if (el) el.textContent = fmtClock(timerSum(`${y}-${s}`));
+      // 题型用时每秒跟着计时器走，不整卡重绘，避免打断点击/滚动
+      for (const t of box.querySelectorAll('[data-sf-t]')) {
+        t.textContent = fmtClock(floatTimeOf(y, s, t.dataset.sfT));
+      }
     }
     for (const el of appEl.querySelectorAll('[data-mock-time]')) {
       const card = el.closest('[data-mockcard]');
@@ -911,20 +916,34 @@
     }
     return out;
   }
+  // 各题型用时：选填是一个计时单位（选择+填空合在一起走表），大题每题一个，这里按题型汇总
+  function floatTimeOf(year, subject, kind) {
+    const scope = paperKey(year, subject);
+    if (kind === 'sel') return timerElapsed(TIMERS[`${scope}|sel`]);
+    if (kind === 'big') {
+      let sum = 0;
+      for (const q of (PAPERS[scope] || [])) {
+        if (qKind(year, q.n) === 'big') sum += timerElapsed(TIMERS[`${scope}|${q.n}`]);
+      }
+      return sum;
+    }
+    return 0;
+  }
   function floatBodyHTML(year, subject, c) {
     const miss = floatMissing(year, subject);
     const done = Math.max(0, c.total.count - miss.length);
     const pct = c.total.max ? Math.min(100, c.total.score / c.total.max * 100) : 0;
     const limit = window.innerWidth <= 640 ? 6 : 10;
     const shown = miss.slice(0, limit);
-    const row = (label, key, val, max) =>
-      `<div class="sf-line"><span>${label}</span><b data-sf="${key}">${fmtScore(val)}</b><i>/ ${max}</i></div>`;
+    const row = (label, key, val, max, kind) =>
+      `<div class="sf-line sf-sc"><span>${label}</span><b data-sf="${key}">${fmtScore(val)}</b><i>/ ${max}</i>` +
+      `<em class="sf-t"${kind ? ` data-sf-t="${kind}"` : ''}>${kind ? fmtClock(floatTimeOf(year, subject, kind)) : ''}</em></div>`;
     return `<div class="sf-top"><span>本卷得分</span><b data-sf="total">${fmtScore(c.total.score)}</b><i>/ ${c.total.max}</i></div>` +
       row('选择题', 'choice', c.choice.score, c.choice.max) +
       row('填空题', 'fill', c.fill.score, c.fill.max) +
-      row('选填', 'sel', c.sel.score, c.sel.max) +
-      row('大题', 'big', c.big.score, c.big.max) +
-      `<div class="sf-line"><span>用时</span><b data-sf="time">${fmtClock(timerSum(paperKey(year, subject)))}</b></div>` +
+      row('选填', 'sel', c.sel.score, c.sel.max, 'sel') +
+      row('大题', 'big', c.big.score, c.big.max, 'big') +
+      `<div class="sf-line sf-sc"><span>用时</span><b data-sf="time">${fmtClock(timerSum(paperKey(year, subject)))}</b><em class="sf-t"></em></div>` +
       `<div class="sf-done"><span>已完成</span><b data-sf="done">${done}</b><i>/ ${c.total.count} 题</i>${miss.length ? '' : '<em class="sf-tick">✓</em>'}</div>` +
       (miss.length
         ? `<div class="sf-miss"><span class="sf-mlabel">未完成</span>${shown.map(n => `<a data-sf-jump="${n}" title="跳到第 ${n} 题">${n}</a>`).join('')}${miss.length > limit ? `<em class="sf-more">+${miss.length - limit}</em>` : ''}</div>`

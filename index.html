@@ -1220,8 +1220,8 @@ body.tzoom-open { overflow: hidden; }
   z-index: 40;
   display: grid;
   gap: 5px;
-  min-width: 166px;
-  max-width: 204px;
+  min-width: 178px;
+  max-width: 220px;
   padding: 12px 15px 11px;
   border: 1px solid var(--line);
   border-radius: 13px;
@@ -1242,6 +1242,18 @@ body.tzoom-open { overflow: hidden; }
 .sf-line span { flex: 0 0 auto; min-width: 38px; font-family: var(--sans); white-space: nowrap; }
 .sf-line b { font-size: 14px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .sf-line i { font-style: normal; }
+/* 分数行右侧一列题型用时，等宽右对齐，跟计时器一起每秒刷新 */
+.sf-line.sf-sc > b { margin-left: auto; min-width: 21px; text-align: right; }
+.sf-t {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-size: 11px;
+  min-width: 37px;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
 .sf-bar { height: 4px; margin-top: 1px; border-radius: 2px; background: var(--mask); overflow: hidden; }
 .sf-bar i { display: block; height: 100%; border-radius: 2px; background: var(--accent); transition: width .3s ease; }
 .sf-done {
@@ -1266,13 +1278,15 @@ body.tzoom-open { overflow: hidden; }
 .sf-more { font-style: normal; opacity: .75; }
 @media (max-width: 640px) {
   /* 手机上收一档，但要保证数字看得清 */
-  .scorefloat { right: 8px; bottom: 8px; min-width: 124px; max-width: 178px; gap: 3px; padding: 8px 11px 7px; border-radius: 10px; opacity: .96; }
+  .scorefloat { right: 8px; bottom: 8px; min-width: 136px; max-width: 192px; gap: 3px; padding: 8px 11px 7px; border-radius: 10px; }
   .sf-top { gap: 4px; }
   .sf-top span { font-size: 10px; letter-spacing: .02em; }
   .sf-top b { font-size: 19px; }
   .sf-top i { font-size: 10px; }
   .sf-line { font-size: 10.5px; gap: 4px; }
   .sf-line span { flex: 0 0 auto; min-width: 34px; }
+  .sf-t { font-size: 9.5px; min-width: 32px; }
+  .sf-line.sf-sc > b { min-width: 18px; }
   .sf-line b { font-size: 12.5px; }
   .sf-bar { height: 3px; }
   .sf-done { font-size: 10.5px; padding-top: 4px; }
