@@ -1025,6 +1025,47 @@ main { padding-top: 24px; }
 }
 .qtimer-btn:hover { background: var(--surface); border-color: var(--line-strong); }
 .qtimer-btn.reset { font-size: 12px; }
+
+/* 计时器放大浮层：点时间数字弹出，大字 + 开始/暂停/重置 */
+.qtimer-time { cursor: zoom-in; }
+.tzoom { position: fixed; inset: 0; z-index: 96; display: grid; place-items: center; padding: 20px; }
+.tzoom[hidden] { display: none; }
+.tzoom-mask { position: absolute; inset: 0; background: rgba(12, 18, 15, .46); }
+.tzoom-card {
+  position: relative; display: grid; justify-items: center; gap: 12px;
+  min-width: 272px; padding: 20px 30px 18px;
+  border: 1px solid var(--line-strong); border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 26px 64px -30px rgba(12, 20, 16, .62);
+}
+.tzoom-lab {
+  margin: 0; max-width: 320px; font-family: var(--sans); font-size: 12px;
+  color: var(--muted); letter-spacing: .04em; text-align: center;
+}
+.tzoom-time {
+  margin: 0; font-family: var(--mono); font-size: 54px; line-height: 1.06;
+  font-weight: 600; color: var(--ink); letter-spacing: .01em;
+  font-variant-numeric: tabular-nums;
+}
+.tzoom.is-run .tzoom-time { color: var(--accent); }
+.tzoom-btns { display: flex; gap: 8px; }
+.tzoom-btn {
+  padding: 7px 16px; min-width: 62px;
+  border: 1px solid var(--line-strong); border-radius: 8px;
+  background: var(--surface); color: var(--ink);
+  font-family: var(--sans); font-size: 13px; line-height: 1.4; cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.tzoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+.tzoom-btn.main.is-on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.tzoom-btn.ghost { color: var(--muted); }
+.tzoom-btn[hidden] { display: none; }
+body.tzoom-open { overflow: hidden; }
+@media (max-width: 640px) {
+  .tzoom-card { min-width: 0; max-width: 92vw; padding: 16px 20px 15px; gap: 10px; }
+  .tzoom-time { font-size: 40px; }
+  .tzoom-lab { font-size: 11.5px; }
+}
 @media (max-width: 640px) {
   .qtimer { padding-left: 5px; gap: 0; font-size: 10.5px; }
   .qtimer-time { min-width: 34px; }
@@ -1178,11 +1219,12 @@ main { padding-top: 24px; }
   bottom: 18px;
   z-index: 40;
   display: grid;
-  gap: 4px;
-  min-width: 138px;
-  padding: 10px 13px 9px;
+  gap: 5px;
+  min-width: 166px;
+  max-width: 204px;
+  padding: 12px 15px 11px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 13px;
   background: var(--surface);
   box-shadow: var(--shadow);
   cursor: pointer;
@@ -1191,27 +1233,52 @@ main { padding-top: 24px; }
 }
 .scorefloat:hover { border-color: var(--line-strong); }
 .scorefloat.has-score { border-color: var(--accent); }
-.sf-top { display: flex; align-items: baseline; gap: 4px; }
-.sf-top span { font-family: var(--sans); font-size: 10px; letter-spacing: .06em; color: var(--muted); }
-.sf-top b { font-size: 21px; line-height: 1.15; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sf-top { display: flex; align-items: baseline; gap: 5px; }
+.sf-top span { font-family: var(--sans); font-size: 11px; letter-spacing: .06em; color: var(--muted); }
+.sf-top b { font-size: 26px; line-height: 1.15; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
 .scorefloat.has-score .sf-top b { color: var(--accent); }
-.sf-top i { font-style: normal; font-size: 10.5px; color: var(--muted); }
-.sf-line { display: flex; align-items: baseline; gap: 4px; font-size: 10.5px; color: var(--muted); }
-.sf-line span { flex: 0 0 25px; font-family: var(--sans); }
-.sf-line b { font-size: 12px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.sf-top i { font-style: normal; font-size: 11.5px; color: var(--muted); }
+.sf-line { display: flex; align-items: baseline; gap: 5px; font-size: 12px; color: var(--muted); }
+.sf-line span { flex: 0 0 auto; min-width: 38px; font-family: var(--sans); white-space: nowrap; }
+.sf-line b { font-size: 14px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .sf-line i { font-style: normal; }
-.sf-bar { height: 3px; margin-top: 1px; border-radius: 2px; background: var(--mask); overflow: hidden; }
+.sf-bar { height: 4px; margin-top: 1px; border-radius: 2px; background: var(--mask); overflow: hidden; }
 .sf-bar i { display: block; height: 100%; border-radius: 2px; background: var(--accent); transition: width .3s ease; }
+.sf-done {
+  display: flex; align-items: baseline; gap: 3px;
+  margin-top: 2px; padding-top: 5px; border-top: 1px dashed var(--line);
+  font-size: 12px; color: var(--muted);
+}
+.sf-done span { font-family: var(--sans); }
+.sf-done b { font-size: 14px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.sf-done i { font-style: normal; }
+.sf-tick { font-style: normal; font-size: 12.5px; font-weight: 700; color: var(--accent); }
+.sf-miss { display: flex; flex-wrap: wrap; gap: 3px 5px; align-items: baseline; font-size: 11px; color: var(--muted); }
+.sf-miss:empty { display: none; }
+.sf-mlabel { font-family: var(--sans); }
+.sf-miss a {
+  font-family: var(--mono); font-size: 11px; line-height: 1.65;
+  min-width: 18px; text-align: center; padding: 0 4px;
+  border: 1px solid var(--line); border-radius: 3px;
+  color: var(--muted); text-decoration: none; cursor: pointer;
+}
+.sf-miss a:hover { color: var(--accent); border-color: var(--accent); }
+.sf-more { font-style: normal; opacity: .75; }
 @media (max-width: 640px) {
-  /* 手机上把浮卡压小一点，尽量少挡住题目卡片底部的按钮 */
-  .scorefloat { right: 8px; bottom: 8px; min-width: 96px; gap: 2px; padding: 7px 9px 6px; border-radius: 9px; opacity: .95; }
-  .sf-top span { font-size: 9px; letter-spacing: .02em; }
-  .sf-top b { font-size: 15px; }
-  .sf-top i { font-size: 9px; }
-  .sf-line { font-size: 9px; gap: 3px; }
-  .sf-line span { flex: 0 0 20px; }
-  .sf-line b { font-size: 10.5px; }
-  .sf-bar { height: 2px; }
+  /* 手机上收一档，但要保证数字看得清 */
+  .scorefloat { right: 8px; bottom: 8px; min-width: 124px; max-width: 178px; gap: 3px; padding: 8px 11px 7px; border-radius: 10px; opacity: .96; }
+  .sf-top { gap: 4px; }
+  .sf-top span { font-size: 10px; letter-spacing: .02em; }
+  .sf-top b { font-size: 19px; }
+  .sf-top i { font-size: 10px; }
+  .sf-line { font-size: 10.5px; gap: 4px; }
+  .sf-line span { flex: 0 0 auto; min-width: 34px; }
+  .sf-line b { font-size: 12.5px; }
+  .sf-bar { height: 3px; }
+  .sf-done { font-size: 10.5px; padding-top: 4px; }
+  .sf-done b { font-size: 12.5px; }
+  .sf-miss { font-size: 10px; gap: 3px 4px; }
+  .sf-miss a { font-size: 10px; min-width: 16px; padding: 0 3px; }
 }
 
 .qtext { font-size: 14.5px; line-height: 1.9; overflow-x: auto; overflow-y: hidden; padding: 2px 0 4px; }

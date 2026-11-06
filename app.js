@@ -608,12 +608,82 @@
     return h ? `${h}:${p(m)}:${p(sec)}` : `${p(m)}:${p(sec)}`;
   };
 
+  /* ── 计时器放大：点时间数字弹出一个大号浮层，放远了也看得清 ── */
+  let zoomKey = null;
+  let zoomEl = null;
+  const ZOOM_HTML = '<div class="tzoom-mask" data-tzoom-close></div>' +
+    '<div class="tzoom-card" role="dialog" aria-modal="true" aria-label="计时器">' +
+      '<p class="tzoom-lab"></p>' +
+      '<p class="tzoom-time">00:00</p>' +
+      '<div class="tzoom-btns">' +
+        '<button class="tzoom-btn main" type="button" data-tzoom-toggle>开始</button>' +
+        '<button class="tzoom-btn" type="button" data-tzoom-reset>重置</button>' +
+        '<button class="tzoom-btn ghost" type="button" data-tzoom-close>关闭</button>' +
+      '</div>' +
+    '</div>';
+
+  function mountZoom() {
+    if (zoomEl) return zoomEl;
+    zoomEl = document.createElement('div');
+    zoomEl.className = 'tzoom';
+    zoomEl.hidden = true;
+    zoomEl.innerHTML = ZOOM_HTML;
+    zoomEl.addEventListener('click', e => {
+      if (e.target.closest('[data-tzoom-close]')) { closeZoom(); return; }
+      if (!zoomKey || zoomKey.indexOf('sum:') === 0) return;
+      if (e.target.closest('[data-tzoom-toggle]')) toggleTimer(zoomKey);
+      else if (e.target.closest('[data-tzoom-reset]')) resetTimer(zoomKey);
+    });
+    document.body.appendChild(zoomEl);
+    return zoomEl;
+  }
+  const zoomIsSum = () => !!zoomKey && zoomKey.indexOf('sum:') === 0;
+  function paintZoom() {
+    if (!zoomEl || zoomEl.hidden || !zoomKey) return;
+    const sum = zoomIsSum();
+    const t = sum ? null : TIMERS[zoomKey];
+    const run = !!(t && t.at);
+    zoomEl.querySelector('.tzoom-time').textContent =
+      fmtClock(sum ? timerSum(zoomKey.slice(4)) : timerElapsed(TIMERS[zoomKey]));
+    zoomEl.classList.toggle('is-run', run);
+    const tog = zoomEl.querySelector('[data-tzoom-toggle]');
+    const rst = zoomEl.querySelector('[data-tzoom-reset]');
+    tog.hidden = sum;
+    rst.hidden = sum;
+    tog.textContent = run ? '暂停' : '开始';
+    tog.classList.toggle('is-on', run);
+  }
+  // 放大层顶部的说明：选填是合在一起计时的，大题按题号
+  function zoomLabelOf(box) {
+    const n = String(box.dataset.timer || '').split('|')[1] || '';
+    if (n === 'sel') return '选择题 + 填空题 · 合计用时';
+    if (/^\d+$/.test(n)) return `第 ${n} 题用时`;
+    return box.getAttribute('title') || '本题用时';
+  }
+  function openZoom(key, label) {
+    mountZoom();
+    zoomKey = key;
+    zoomEl.querySelector('.tzoom-lab').textContent = label || '';
+    zoomEl.hidden = false;
+    document.body.classList.add('tzoom-open');
+    paintZoom();
+  }
+  function closeZoom() {
+    if (!zoomEl) return;
+    zoomEl.hidden = true;
+    zoomKey = null;
+    document.body.classList.remove('tzoom-open');
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && zoomEl && !zoomEl.hidden) closeZoom();
+  });
+
   function timerHTML(key, label, text) {
     const t = TIMERS[key];
     const run = !!(t && t.at);
     return `<span class="qtimer${run ? ' is-run' : ''}" data-timer="${attr(key)}" title="${attr(label)}">` +
       (text ? `<span class="qtimer-lab">${esc(text)}</span>` : '') +
-      `<span class="qtimer-time">${fmtClock(timerElapsed(t))}</span>` +
+      `<span class="qtimer-time" data-timer-zoom title="点一下放大">${fmtClock(timerElapsed(t))}</span>` +
       `<button class="qtimer-btn" type="button" data-timer-toggle aria-pressed="${run}" aria-label="${run ? '暂停计时' : '开始计时'}">${run ? '❚❚' : '▶'}</button>` +
       `<button class="qtimer-btn reset" type="button" data-timer-reset aria-label="重置计时" title="重置为 00:00">↺</button>` +
       `</span>`;
@@ -633,6 +703,7 @@
     }
   }
   function paintTimers() {
+    paintZoom();
     for (const el of appEl.querySelectorAll('[data-timer]')) paintTimer(el);
     const box = appEl.querySelector('[data-scorefloat]');
     if (box) {
@@ -685,6 +756,15 @@
   setInterval(() => {
     if (Object.values(TIMERS).some(t => t.at)) saveTimers();
   }, 5000);
+  // 浮卡里「未完成」显示几个题号跟窗口宽度有关，转屏或改窗口大小后重算
+  let floatResizeTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(floatResizeTimer);
+    floatResizeTimer = setTimeout(() => {
+      const box = appEl.querySelector('[data-scorefloat]');
+      if (box) updateFloatScore(Number(box.dataset.year), Number(box.dataset.subject));
+    }, 220);
+  });
 
   /* ── 我的成绩面板 ── */
   const attr = s => esc(s).replace(/"/g, '&quot;');
@@ -819,30 +899,47 @@
   }
 
   /* ── 右下角的本卷得分卡 ── */
+  // 还没记分（选填没标对错、大题没填分）的题号，用来提示还差哪些题
+  function floatMissing(year, subject) {
+    const paper = PAPERS[paperKey(year, subject)] || [];
+    const rec = scoreRec(year, subject);
+    const out = [];
+    for (const q of paper) {
+      const isBig = qKind(year, q.n) === 'big';
+      const raw = rec ? (isBig ? rec.big[q.n] : rec.sel[q.n]) : undefined;
+      if (raw === undefined) out.push(q.n);
+    }
+    return out;
+  }
+  function floatBodyHTML(year, subject, c) {
+    const miss = floatMissing(year, subject);
+    const done = Math.max(0, c.total.count - miss.length);
+    const pct = c.total.max ? Math.min(100, c.total.score / c.total.max * 100) : 0;
+    const limit = window.innerWidth <= 640 ? 6 : 10;
+    const shown = miss.slice(0, limit);
+    const row = (label, key, val, max) =>
+      `<div class="sf-line"><span>${label}</span><b data-sf="${key}">${fmtScore(val)}</b><i>/ ${max}</i></div>`;
+    return `<div class="sf-top"><span>本卷得分</span><b data-sf="total">${fmtScore(c.total.score)}</b><i>/ ${c.total.max}</i></div>` +
+      row('选择题', 'choice', c.choice.score, c.choice.max) +
+      row('填空题', 'fill', c.fill.score, c.fill.max) +
+      row('选填', 'sel', c.sel.score, c.sel.max) +
+      row('大题', 'big', c.big.score, c.big.max) +
+      `<div class="sf-line"><span>用时</span><b data-sf="time">${fmtClock(timerSum(paperKey(year, subject)))}</b></div>` +
+      `<div class="sf-done"><span>已完成</span><b data-sf="done">${done}</b><i>/ ${c.total.count} 题</i>${miss.length ? '' : '<em class="sf-tick">✓</em>'}</div>` +
+      (miss.length
+        ? `<div class="sf-miss"><span class="sf-mlabel">未完成</span>${shown.map(n => `<a data-sf-jump="${n}" title="跳到第 ${n} 题">${n}</a>`).join('')}${miss.length > limit ? `<em class="sf-more">+${miss.length - limit}</em>` : ''}</div>`
+        : '') +
+      `<div class="sf-bar"><i data-sf="bar" style="width:${pct.toFixed(1)}%"></i></div>`;
+  }
   function scoreFloatHTML(year, subject) {
     const c = computePaperScore(year, subject);
-    const pct = c.total.max ? Math.min(100, c.total.score / c.total.max * 100) : 0;
-    return `<aside class="scorefloat${c.hasAny ? ' has-score' : ''}" data-scorefloat data-year="${year}" data-subject="${subject}" title="点击回到「我的成绩」">
-      <div class="sf-top"><span>本卷得分</span><b data-sf="total">${fmtScore(c.total.score)}</b><i>/ ${c.total.max}</i></div>
-      <div class="sf-line"><span>选填</span><b data-sf="sel">${fmtScore(c.sel.score)}</b><i>/ ${c.sel.max}</i></div>
-      <div class="sf-line"><span>大题</span><b data-sf="big">${fmtScore(c.big.score)}</b><i>/ ${c.big.max}</i></div>
-      <div class="sf-line"><span>用时</span><b data-sf="time">${fmtClock(timerSum(paperKey(year, subject)))}</b></div>
-      <div class="sf-bar"><i data-sf="bar" style="width:${pct.toFixed(1)}%"></i></div>
-    </aside>`;
+    return `<aside class="scorefloat${c.hasAny ? ' has-score' : ''}" data-scorefloat data-year="${year}" data-subject="${subject}" title="点击空白处回到「我的成绩」">${floatBodyHTML(year, subject, c)}</aside>`;
   }
   function updateFloatScore(year, subject, c) {
     const box = appEl.querySelector('[data-scorefloat]');
     if (!box) return;
     const score = c || computePaperScore(year, subject);
-    const put = (k, val) => {
-      const el = box.querySelector(`[data-sf="${k}"]`);
-      if (el) el.textContent = val;
-    };
-    put('total', fmtScore(score.total.score));
-    put('sel', fmtScore(score.sel.score));
-    put('big', fmtScore(score.big.score));
-    const bar = box.querySelector('[data-sf="bar"]');
-    if (bar) bar.style.width = `${score.total.max ? Math.min(100, score.total.score / score.total.max * 100) : 0}%`;
+    box.innerHTML = floatBodyHTML(year, subject, score);
     box.classList.toggle('has-score', score.hasAny);
   }
 
@@ -2321,12 +2418,36 @@
       return;
     }
 
+    const timerZoom = e.target.closest('[data-timer-zoom]');
+    if (timerZoom) {
+      const box = timerZoom.closest('[data-timer]');
+      if (box) openZoom(box.dataset.timer, zoomLabelOf(box));
+      return;
+    }
+
+    const sfTime = e.target.closest('[data-sf="time"]');
+    if (sfTime) {
+      const fb = sfTime.closest('[data-scorefloat]');
+      if (fb) openZoom(`sum:${fb.dataset.year}-${fb.dataset.subject}`, `${fb.dataset.year} 年 · 本卷总用时`);
+      return;
+    }
+
     const timerBtn = e.target.closest('[data-timer-toggle], [data-timer-reset]');
     if (timerBtn) {
       const box = timerBtn.closest('[data-timer]');
       if (!box) return;
       if (timerBtn.hasAttribute('data-timer-reset')) resetTimer(box.dataset.timer);
       else toggleTimer(box.dataset.timer);
+      return;
+    }
+
+    const sfJump = e.target.closest('[data-sf-jump]');
+    if (sfJump) {
+      const fb = sfJump.closest('[data-scorefloat]');
+      if (fb) {
+        const el = document.getElementById(`q-${fb.dataset.year}-${fb.dataset.subject}-${sfJump.dataset.sfJump}`);
+        if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
       return;
     }
 
