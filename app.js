@@ -608,6 +608,52 @@
     return h ? `${h}:${p(m)}:${p(sec)}` : `${p(m)}:${p(sec)}`;
   };
 
+  /* ── 同题计时：同一道题在数一/数二/数三里出现时，用时也共用一个值 ── */
+  // 跟同题得分一个道理：任何一科按了开始/暂停/重置，其他科目的同一道题跟着变。
+  // 只对「每题一个计时器」的大题生效；选填是整段一个计时单位，跟题号对不上，不参与。
+  function timerPeerKeys(key) {
+    const k = String(key);
+    const bar = k.indexOf('|');
+    if (bar < 0) return [];
+    const scope = k.slice(0, bar), part = k.slice(bar + 1);
+    if (!/^\d+$/.test(part)) return [];
+    const m = /^(\d{4})-([123])$/.exec(scope);
+    if (!m) return [];                       // 模拟卷是自定义题，没有同题可对应
+    const year = Number(m[1]), subject = Number(m[2]);
+    if (!LOADED_YEARS.has(year)) return [];  // 那一年数据还没载入，题干没法比对
+    return sameQuestionTargets(year, subject, Number(part))
+      .map(t => `${year}-${t.subject}|${t.n}`);
+  }
+
+  // onlyMissing=true：只在对方还没计时过时补上，不覆盖已有记录（载入时用）
+  function syncTimerPeers(key, onlyMissing) {
+    const src = TIMERS[key];
+    let changed = 0;
+    for (const pk of timerPeerKeys(key)) {
+      const cur = TIMERS[pk];
+      if (!src) {                            // 本条被重置：同题一起清掉
+        if (!cur) continue;
+        delete TIMERS[pk];
+        changed++;
+        continue;
+      }
+      if (onlyMissing && cur) continue;
+      const same = cur && Math.round(cur.acc) === Math.round(src.acc) && (!cur.at === !src.at);
+      if (same) continue;
+      TIMERS[pk] = { acc: Math.round(src.acc), at: src.at };
+      changed++;
+    }
+    return changed;
+  }
+
+  // 打开页面时把只在一科计过时的同题时间补到其他科目
+  function reconcileLoadedTimers() {
+    let changed = 0;
+    for (const key of Object.keys(TIMERS)) changed += syncTimerPeers(key, true);
+    if (changed) saveTimers();
+    return changed;
+  }
+
   /* ── 计时器放大：点时间数字弹出一个大号浮层，放远了也看得清 ── */
   let zoomKey = null;
   let zoomEl = null;
@@ -725,13 +771,18 @@
     if (t.at) return;
     // 同一份卷同时只走一个计时器，否则整卷用时会把重叠的部分算两遍
     const scope = timerScope(key);
+    const stopped = [];
     for (const [k, o] of Object.entries(TIMERS)) {
       if (k !== key && timerScope(k) === scope && o.at) {
         o.acc += Date.now() - o.at;
         o.at = null;
+        stopped.push(k);
       }
     }
     t.at = Date.now();
+    // 同题共用一条计时：这一题开跑，别的卷子里同一道题也跟着走；被顺带停下的同题同步停住
+    syncTimerPeers(key, false);
+    for (const k of stopped) syncTimerPeers(k, false);
     saveTimers();
     paintTimers();
   }
@@ -740,12 +791,15 @@
     if (!t || !t.at) return;
     t.acc += Date.now() - t.at;
     t.at = null;
+    syncTimerPeers(key, false);
     saveTimers();
     paintTimers();
   }
   function resetTimer(key) {
-    if (!TIMERS[key]) return;
-    delete TIMERS[key];
+    const had = !!TIMERS[key];
+    if (had) delete TIMERS[key];
+    const peers = syncTimerPeers(key, false);
+    if (!had && !peers) return;
     saveTimers();
     paintTimers();
   }
@@ -860,7 +914,7 @@
         <p class="scsum">已填 <b data-score-set="big">${c.big.set}</b> / ${c.big.count} 题 · 大题 <b data-score-sum="big">${fmtScore(c.big.score)}</b> / ${c.big.max}</p>
       </div>
       <div class="scorefoot">
-        <span>点题号标记做对，再点一次标记做错；同题分数会自动同步到其他科目。「全选」和「大题全满分」只补齐未记录的部分，不会覆盖已填分数。未标记／未填写的题目按 0 分计。</span>
+        <span>点题号标记做对，再点一次标记做错；同题分数和用时都会自动同步到其他科目。「全选」和「大题全满分」只补齐未记录的部分，不会覆盖已填分数。未标记／未填写的题目按 0 分计。</span>
         <div class="scorefoot-btns">
           <button class="minibtn" type="button" data-score-sync title="同题已自动同步；这个按钮用于补齐以前留下的旧记录">补齐同题分数</button>
           <button class="minibtn danger" type="button" data-score-reset>清空本卷成绩</button>
@@ -1302,7 +1356,7 @@
         ${key && !opts.inKey ? '<span class="chip key-tag">重点</span>' : ''}
         <span class="qmeta">考点：<b>${safe(q.t)}</b></span>
         ${stars(q.st)}
-        ${opts.score && qKind(year, q.n) === 'big' ? timerHTML(`${paperKey(year, subject)}|${q.n}`, `第 ${q.n} 题计时`) : ''}
+        ${opts.score && qKind(year, q.n) === 'big' ? timerHTML(`${paperKey(year, subject)}|${q.n}`, `第 ${q.n} 题计时${sameQuestionHint(year, subject, q).replace(/（[^）]*）/g, '')}`) : ''}
         ${scoreBoxHTML(year, subject, q, opts)}
       </div>
       <div class="qtext">${safe(q.x)}</div>
@@ -2209,6 +2263,7 @@
     } catch (e) { /* file:// 下部分浏览器不允许改写地址 */ }
 
     reconcileLoadedScores();
+    reconcileLoadedTimers();
     const cacheKey = cacheKeyOf();
     const cachedNodes = VIEW_CACHE.get(cacheKey);
     if (cachedNodes) {
