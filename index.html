@@ -518,6 +518,13 @@ main { padding-top: 24px; }
   color: var(--hard);
   font-weight: 600;
 }
+/* 选填题记了部分分（不是 0 也不是满分）时用金色标出 */
+.qsbtn.is-part {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: transparent;
+  font-weight: 600;
+}
 .scsum { margin: 7px 0 0; font-size: 11.5px; color: var(--muted); }
 .scsum b { font-family: var(--mono); font-size: 12px; color: var(--ink); font-weight: 600; }
 .bigrows { display: grid; gap: 0; }
@@ -1086,6 +1093,45 @@ main { padding-top: 24px; }
 .qscore input::placeholder { color: var(--line-strong); font-weight: 500; }
 .qscore input.has-val { border-color: var(--accent); color: var(--accent); }
 .qscore-max { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; }
+/* 选填题的得分框比解答题窄一点，题头一行放得下 */
+.qscore-sel input { width: 46px; }
+
+/* 右下角的本卷得分卡：总分 / 选填 / 大题，与「我的成绩」面板实时联动 */
+.scorefloat {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  display: grid;
+  gap: 4px;
+  min-width: 138px;
+  padding: 10px 13px 9px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  font-family: var(--mono);
+  transition: border-color .15s, box-shadow .15s;
+}
+.scorefloat:hover { border-color: var(--line-strong); }
+.scorefloat.has-score { border-color: var(--accent); }
+.sf-top { display: flex; align-items: baseline; gap: 4px; }
+.sf-top span { font-family: var(--sans); font-size: 10px; letter-spacing: .06em; color: var(--muted); }
+.sf-top b { font-size: 21px; line-height: 1.15; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.scorefloat.has-score .sf-top b { color: var(--accent); }
+.sf-top i { font-style: normal; font-size: 10.5px; color: var(--muted); }
+.sf-line { display: flex; align-items: baseline; gap: 4px; font-size: 10.5px; color: var(--muted); }
+.sf-line span { flex: 0 0 25px; font-family: var(--sans); }
+.sf-line b { font-size: 12px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.sf-line i { font-style: normal; }
+.sf-bar { height: 3px; margin-top: 1px; border-radius: 2px; background: var(--mask); overflow: hidden; }
+.sf-bar i { display: block; height: 100%; border-radius: 2px; background: var(--accent); transition: width .3s ease; }
+@media (max-width: 640px) {
+  .scorefloat { right: 10px; bottom: 10px; min-width: 112px; gap: 3px; padding: 8px 10px 7px; border-radius: 10px; }
+  .sf-top b { font-size: 17px; }
+  .sf-line { font-size: 10px; }
+}
 
 .qtext { font-size: 14.5px; line-height: 1.9; overflow-x: auto; overflow-y: hidden; padding: 2px 0 4px; }
 .qtext .katex-display { margin: .35em 0; }
@@ -1503,7 +1549,7 @@ footer .mono { font-family: var(--mono); }
   .chart-tip { min-width: 132px; }
 }
 @media print {
-  .navwrap, .pdfbtns, .filters, .ansbtn, .minilink, .headlinks, .qscore, footer { display: none !important; }
+  .navwrap, .pdfbtns, .filters, .ansbtn, .minilink, .headlinks, .qscore, .scorefloat, footer { display: none !important; }
   body { padding: 0; background: #fff; }
   .qcard, .card { box-shadow: none; break-inside: avoid; }
   .ansbox { display: block !important; }
