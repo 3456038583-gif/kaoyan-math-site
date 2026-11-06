@@ -539,6 +539,19 @@
   /* ── 我的成绩面板 ── */
   const attr = s => esc(s).replace(/"/g, '&quot;');
 
+  // 解答题：题目卡片上也能直接填分，与顶部成绩面板双向同步
+  function scoreBoxHTML(year, subject, q, opts) {
+    if (!opts || !opts.score || qKind(year, q.n) !== 'big') return '';
+    const max = qMax(year, q.n);
+    const rec = scoreRec(year, subject);
+    const v = rec ? rec.big[q.n] : undefined;
+    return `<span class="qscore" title="第 ${q.n} 题得分，与顶部「我的成绩」同步">
+      <span class="qscore-lab">得分</span>
+      <input type="number" inputmode="decimal" min="0" max="${max}" step="0.5" placeholder="—" value="${v === undefined ? '' : fmtScore(v)}" data-qbig="${year},${subject},${q.n}" aria-label="第 ${q.n} 题得分，满分 ${max} 分">
+      <span class="qscore-max">/ ${max}</span>
+    </span>`;
+  }
+
   function scorePanelHTML(year, subject) {
     const paper = PAPERS[paperKey(year, subject)] || [];
     const rec = scoreRec(year, subject);
@@ -619,6 +632,7 @@
     const fresh = tmp.firstElementChild;
     if (!fresh) return card;
     card.replaceWith(fresh);
+    refreshBigCardInputs(year, subject);   // 面板重画后，题目卡片上的分数也要跟上
     return fresh;
   }
 
@@ -640,6 +654,44 @@
     put('[data-score-sum="sel"]', fmtScore(c.sel.score));
     put('[data-score-correct]', c.sel.correct);
     card.classList.toggle('has-score', c.hasAny);
+  }
+
+  /* 大题分数有两个入口：顶部成绩面板与题目卡片。任改一处都要同步到另一处 */
+  const bigScoreSel = (year, subject, n) => `[data-score-big="${n}"], [data-qbig="${year},${subject},${n}"]`;
+  function bigScoreCtx(el) {
+    if (el.dataset.qbig) {
+      const [y, s, n] = el.dataset.qbig.split(',').map(Number);
+      if (!y || !s || !n) return null;
+      return { year: y, subject: s, n: n };
+    }
+    const card = el.closest('[data-scorecard]');
+    if (!card) return null;
+    return {
+      year: Number(card.dataset.year),
+      subject: Number(card.dataset.subject),
+      n: Number(el.dataset.scoreBig)
+    };
+  }
+  // except：正在输入的那个框不回填，避免打断「12.」这类中间状态
+  function mirrorBigScore(year, subject, n, v, except) {
+    const val = v === undefined ? '' : fmtScore(v);
+    for (const el of appEl.querySelectorAll(bigScoreSel(year, subject, n))) {
+      if (el !== except && el.value !== val) el.value = val;   // 正在输入的那个框不回填
+      el.classList.toggle('has-val', v !== undefined);
+    }
+    const card = appEl.querySelector('[data-scorecard]');
+    if (card) updateScoreSums(card, year, subject);
+  }
+  // 一键全满分、清空、复制、重置后，把卡片上的输入框一起刷新
+  function refreshBigCardInputs(year, subject) {
+    const rec = scoreRec(year, subject);
+    for (const el of appEl.querySelectorAll('[data-qbig]')) {
+      const [y, s, n] = el.dataset.qbig.split(',').map(Number);
+      if (y !== year || s !== subject) continue;
+      const v = rec ? rec.big[n] : undefined;
+      el.value = v === undefined ? '' : fmtScore(v);
+      el.classList.toggle('has-val', v !== undefined);
+    }
   }
 
   /* ── 模拟卷面板 ── */
@@ -909,6 +961,7 @@
         ${key && !opts.inKey ? '<span class="chip key-tag">重点</span>' : ''}
         <span class="qmeta">考点：<b>${safe(q.t)}</b></span>
         ${stars(q.st)}
+        ${scoreBoxHTML(year, subject, q, opts)}
       </div>
       <div class="qtext">${safe(q.x)}</div>
       ${options}
@@ -1026,7 +1079,7 @@
       if (!qs.length) return '';
       return `<section class="qgroup">
         <div class="qgroup-head"><h3>${g.title}</h3><span>${g.meta}</span></div>
-        ${qs.map(q => renderCard(q, subject, year)).join('')}
+        ${qs.map(q => renderCard(q, subject, year, { score: true })).join('')}
       </section>`;
     }).join('');
 
@@ -2305,13 +2358,13 @@
       refreshMockStats();
       return;
     }
-    const inp = e.target.closest('[data-score-big]');
+    const inp = e.target.closest('[data-score-big], [data-qbig]');
     if (!inp) return;
-    const card = inp.closest('[data-scorecard]');
-    if (!card) return;
-    const year = Number(card.dataset.year);
-    const subject = Number(card.dataset.subject);
-    const n = Number(inp.dataset.scoreBig);
+    const ctx = bigScoreCtx(inp);
+    if (!ctx) return;
+    const year = ctx.year;
+    const subject = ctx.subject;
+    const n = ctx.n;
     const raw = inp.value.trim();
     const rec = ensureScoreRec(year, subject);
     if (raw === '') {
@@ -2326,8 +2379,9 @@
     const synced = propagateScore(year, subject, n, rec.big[n], false);
     pruneScoreRec(year, subject);
     saveScores();
-    updateScoreSums(card, year, subject);
-    if (synced) setScoreStatus(card, `第 ${n} 题已自动同步到 ${synced} 道同题。`);
+    mirrorBigScore(year, subject, n, rec.big[n], inp);
+    const card = appEl.querySelector('[data-scorecard]');
+    if (synced && card) setScoreStatus(card, `第 ${n} 题已自动同步到 ${synced} 道同题。`);
   });
 
   // 失焦时把越界或只写了一半的数字回填成实际存下的分数
@@ -2341,16 +2395,14 @@
       mockInp.value = v === undefined ? '' : fmtScore(v);
       return;
     }
-    const inp = e.target.closest('[data-score-big]');
+    const inp = e.target.closest('[data-score-big], [data-qbig]');
     if (!inp) return;
-    const card = inp.closest('[data-scorecard]');
-    if (!card) return;
-    const year = Number(card.dataset.year);
-    const subject = Number(card.dataset.subject);
-    const n = Number(inp.dataset.scoreBig);
-    const rec = scoreRec(year, subject);
-    const v = rec ? rec.big[n] : undefined;
+    const ctx = bigScoreCtx(inp);
+    if (!ctx) return;
+    const rec = scoreRec(ctx.year, ctx.subject);
+    const v = rec ? rec.big[ctx.n] : undefined;
     inp.value = v === undefined ? '' : fmtScore(v);
+    inp.classList.toggle('has-val', v !== undefined);
   });
 
   modulesEl.addEventListener('click', e => {

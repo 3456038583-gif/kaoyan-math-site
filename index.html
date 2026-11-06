@@ -1054,6 +1054,39 @@ main { padding-top: 24px; }
 .stars .off { color: var(--line-strong); }
 .stars .num { color: var(--muted); font-size: 9.5px; letter-spacing: 0; margin-left: 4px; }
 
+/* 解答题卡片上的得分输入：与顶部「我的成绩」双向同步 */
+.qscore {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 4px;
+  padding: 2px 6px 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--mask);
+}
+.qscore-lab { font-size: 10.5px; letter-spacing: .04em; color: var(--muted); white-space: nowrap; }
+.qscore input {
+  width: 52px;
+  height: 24px;
+  padding: 0 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.qscore input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.qscore input::placeholder { color: var(--line-strong); font-weight: 500; }
+.qscore input.has-val { border-color: var(--accent); color: var(--accent); }
+.qscore-max { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; }
+
 .qtext { font-size: 14.5px; line-height: 1.9; overflow-x: auto; overflow-y: hidden; padding: 2px 0 4px; }
 .qtext .katex-display { margin: .35em 0; }
 /* 试卷原样的表格（如二维离散型随机变量的联合分布表）：上下粗线 + 表头细线 + 首列竖线 + 左上角斜线 */
@@ -1443,6 +1476,8 @@ footer .mono { font-family: var(--mono); }
   .ctbtn { justify-content: center; }
   .seal { width: 44px; height: 44px; font-size: 23px; }
   .qcard { padding: 14px 14px 12px; }
+  .qscore { padding-left: 6px; gap: 4px; }
+  .qscore input { width: 46px; height: 23px; }
   .qtext { font-size: 14px; }
   .yearhero { align-items: flex-start; }
   .pdfbtns { width: 100%; }
@@ -1468,7 +1503,7 @@ footer .mono { font-family: var(--mono); }
   .chart-tip { min-width: 132px; }
 }
 @media print {
-  .navwrap, .pdfbtns, .filters, .ansbtn, .minilink, .headlinks, footer { display: none !important; }
+  .navwrap, .pdfbtns, .filters, .ansbtn, .minilink, .headlinks, .qscore, footer { display: none !important; }
   body { padding: 0; background: #fff; }
   .qcard, .card { box-shadow: none; break-inside: avoid; }
   .ansbox { display: block !important; }
