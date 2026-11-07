@@ -496,14 +496,43 @@
   const paperPath = (year, subject, kind) => `pdfs/${year}/${year}-m${subject}-${kind}.pdf`;
   const reviewPath = year => `pdfs/${year}/${year}-review.pdf`;
 
-  /* ── B 站视频讲解（小崔说数）──
-     每题题号旁、真题评价卡、卷头各放一个入口。视频是同一个合集，
-     暂时没有逐题时间点，所以都指到这一支；以后拿到分段时间轴，
-     可以在这里按 `?t=秒` 拼出来。 */
-  const BILI_URL = 'https://www.bilibili.com/video/BV1L7ev67ERp/';
+  /* ── B 站视频讲解：小崔说数《考研数学历年真题逐题精讲》合集 ──
+     一套卷一个视频，P1 是「真题点评 & 重点题」，第 n 题在第 n+1 P。
+     2010—2026 数一/数二/数三 共 51 套逐套核对过，规律没有例外；
+     以后合集里补了新年份，只要往这张表加一行。 */
+  const BILI = {
+    '2026-1': 'BV1L7ev67ERp', '2026-2': 'BV1j7ev67EMz', '2026-3': 'BV1j7ev67EPM',
+    '2025-1': 'BV1jxJrzLEt4', '2025-2': 'BV1qxJrzLEYm', '2025-3': 'BV17xJrzLEVz',
+    '2024-1': 'BV1RamgYmEZM', '2024-2': 'BV1damgYmE3g', '2024-3': 'BV1fsmgYpEzY',
+    '2023-1': 'BV1U2mgYMEee', '2023-2': 'BV1U2mgYMECH', '2023-3': 'BV1U2mgYMEvt',
+    '2022-1': 'BV18bmVY7ERz', '2022-2': 'BV18bmVY7EJj', '2022-3': 'BV18bmVY7Egs',
+    '2021-1': 'BV1b8mVY2E4E', '2021-2': 'BV188mVY2EGL', '2021-3': 'BV1b8mVY2EZZ',
+    '2020-1': 'BV1yFmVYTEHg', '2020-2': 'BV1PFmVYMEFz', '2020-3': 'BV1yFmVYTEjS',
+    '2019-1': 'BV1fgmVY8E4o', '2019-2': 'BV1BgmVY8ESM', '2019-3': 'BV1zgmVY8ELn',
+    '2018-1': 'BV1zgmVY8EeN', '2018-2': 'BV1fgmVY8EyJ', '2018-3': 'BV1BgmVY8Eoe',
+    '2017-1': 'BV1NPCmYZErZ', '2017-2': 'BV1KPCmYZEiy', '2017-3': 'BV1NPCmYZEtq',
+    '2016-1': 'BV1nX1AYPEWJ', '2016-2': 'BV1rX1AYPEkR', '2016-3': 'BV1nX1AYPEqh',
+    '2015-1': 'BV1ZvS4YqE4R', '2015-2': 'BV1ZvS4YqEjN', '2015-3': 'BV1BvS4YBE5Z',
+    '2014-1': 'BV1DymyYqEtB', '2014-2': 'BV1DymyYqEcP', '2014-3': 'BV1KXmyYAEXc',
+    '2013-1': 'BV13QmtYfECV', '2013-2': 'BV1u2myYTEzY', '2013-3': 'BV1S2myYKEkY',
+    '2012-1': 'BV1U4UKYbEny', '2012-2': 'BV1u4UKY8E7A', '2012-3': 'BV1m4UKYbEU1',
+    '2011-1': 'BV1SQUnYBEke', '2011-2': 'BV1SQUnYBEmu', '2011-3': 'BV1SQUnYBEsF',
+    '2010-1': 'BV1UQUnYBEob', '2010-2': 'BV1SQUnYBEQt', '2010-3': 'BV1SQUnYBEWX',
+  };
+  const biliVideo = (year, subject) => BILI[`${year}-${subject}`] || '';
+  /* 难度评价 / 真题点评 = 该卷视频的 P1 */
+  const biliReviewURL = (year, subject) => {
+    const bv = biliVideo(year, subject);
+    return bv ? `https://www.bilibili.com/video/${bv}/?p=1` : '';
+  };
+  /* 第 n 题的讲解 = 该卷视频的 P(n+1)；没有对应视频时返回空串，入口自动隐藏 */
+  const biliQURL = (year, subject, n) => {
+    const bv = biliVideo(year, subject);
+    return bv ? `https://www.bilibili.com/video/${bv}/?p=${n + 1}` : '';
+  };
   const BILI_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.3" y="4.3" width="11.4" height="8.8" rx="2.2"/><path d="M5.2 1.9 8 4.3l2.8-2.4"/><path d="M6.6 7.1 10.2 8.7 6.6 10.3z" fill="currentColor" stroke="none"/></svg>';
-  const videoLinkHTML = (label, cls) =>
-    `<a class="qvlink${cls ? ' ' + cls : ''}" href="${BILI_URL}" target="_blank" rel="noopener noreferrer" title="在 B 站看「小崔说数」的真题讲解（合集）">${BILI_ICON}<span>${label}</span></a>`;
+  const videoLinkHTML = (href, label, tip, cls) => !href ? ''
+    : `<a class="qvlink${cls ? ' ' + cls : ''}" href="${href}" target="_blank" rel="noopener noreferrer" title="${tip}">${BILI_ICON}<span>${label}</span></a>`;
 
   // 试卷排版里 lim/∑ 的上下标写在正下方；定积分、重积分的上下限写在积分号右侧
   const LIMIT_OPS = /\\(lim|limsup|liminf|varlimsup|varliminf|max|min|sup|inf|sum|prod|coprod|bigcup|bigcap)_/g;
@@ -1358,7 +1387,7 @@
     return `<article class="qcard${key ? ' is-key' : ''}" id="q-${year}-${subject}-${q.n}" data-lv="${lv}"${key ? ' data-key="1"' : ''}>
       <div class="qhead">
         <span class="qnum">${q.n}</span>
-        ${videoLinkHTML('视频')}
+        ${opts.noVideo ? '' : videoLinkHTML(biliQURL(year, subject, q.n), '视频', `在 B 站看第 ${q.n} 题的讲解（小崔说数）`)}
         ${sameTagHTML}
         <span class="chip ${LV_CLASS[lv]}">${lv}</span>
         ${opts.showSubject ? `<span class="chip mod-tag">${SUBJ[subject]}</span>` : ''}
@@ -1430,7 +1459,7 @@
       </div>`).join('');
 
     const reviewCard = `<div class="card review">
-      <div class="rtitle">真题评价 · ${year} · ${review.overall}${videoLinkHTML('看视频讲解', 'vlink')}</div>
+      <div class="rtitle">真题评价 · ${year} · ${review.overall}${videoLinkHTML(biliReviewURL(year, subject), '看视频讲解', `${year} 年${SUBJ[subject]}真题点评`, 'vlink')}</div>
       <ul>${review.bullets.map(b => `<li><span>${safe(b)}</span></li>`).join('')}</ul>
       <p class="quote">${safe(review.quote)}</p>
     </div>`;
@@ -1502,7 +1531,7 @@
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 1.5h5l3 3v10H4z"/><path d="M9 1.5v3h3"/><path d="M6 9h4M6 11.5h4"/></svg>试卷 PDF</button>
           <button class="btn" type="button" data-pdf="${paperPath(year, subject, 'sol')}" data-pdf-title="${year} 年${SUBJ[subject]}解析">解析 PDF</button>
           <button class="btn" type="button" data-pdf="${reviewPath(year)}" data-pdf-title="${year} 年真题评价 & 重点题">真题评价</button>
-          <a class="btn bilibtn" href="${BILI_URL}" target="_blank" rel="noopener noreferrer" title="在 B 站看「小崔说数」的真题讲解（合集）">${BILI_ICON}视频讲解</a>
+          ${biliReviewURL(year, subject) ? `<a class="btn bilibtn" href="${biliReviewURL(year, subject)}" target="_blank" rel="noopener noreferrer" title="${year} 年${SUBJ[subject]}真题点评（第 1 P）">${BILI_ICON}视频讲解</a>` : ''}
         </div>
       </header>
       <div class="scorestrip">${scores}</div>
