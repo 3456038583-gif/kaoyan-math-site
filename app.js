@@ -496,6 +496,15 @@
   const paperPath = (year, subject, kind) => `pdfs/${year}/${year}-m${subject}-${kind}.pdf`;
   const reviewPath = year => `pdfs/${year}/${year}-review.pdf`;
 
+  /* ── B 站视频讲解（小崔说数）──
+     每题题号旁、真题评价卡、卷头各放一个入口。视频是同一个合集，
+     暂时没有逐题时间点，所以都指到这一支；以后拿到分段时间轴，
+     可以在这里按 `?t=秒` 拼出来。 */
+  const BILI_URL = 'https://www.bilibili.com/video/BV1L7ev67ERp/';
+  const BILI_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.3" y="4.3" width="11.4" height="8.8" rx="2.2"/><path d="M5.2 1.9 8 4.3l2.8-2.4"/><path d="M6.6 7.1 10.2 8.7 6.6 10.3z" fill="currentColor" stroke="none"/></svg>';
+  const videoLinkHTML = (label, cls) =>
+    `<a class="qvlink${cls ? ' ' + cls : ''}" href="${BILI_URL}" target="_blank" rel="noopener noreferrer" title="在 B 站看「小崔说数」的真题讲解（合集）">${BILI_ICON}<span>${label}</span></a>`;
+
   // 试卷排版里 lim/∑ 的上下标写在正下方；定积分、重积分的上下限写在积分号右侧
   const LIMIT_OPS = /\\(lim|limsup|liminf|varlimsup|varliminf|max|min|sup|inf|sum|prod|coprod|bigcup|bigcap)_/g;
   // KaTeX 在 \displaystyle 下会把 \int 的上下限堆到正上/正下（\nolimits 也压不住），
@@ -1349,6 +1358,7 @@
     return `<article class="qcard${key ? ' is-key' : ''}" id="q-${year}-${subject}-${q.n}" data-lv="${lv}"${key ? ' data-key="1"' : ''}>
       <div class="qhead">
         <span class="qnum">${q.n}</span>
+        ${videoLinkHTML('视频')}
         ${sameTagHTML}
         <span class="chip ${LV_CLASS[lv]}">${lv}</span>
         ${opts.showSubject ? `<span class="chip mod-tag">${SUBJ[subject]}</span>` : ''}
@@ -1420,7 +1430,7 @@
       </div>`).join('');
 
     const reviewCard = `<div class="card review">
-      <div class="rtitle">真题评价 · ${year} · ${review.overall}</div>
+      <div class="rtitle">真题评价 · ${year} · ${review.overall}${videoLinkHTML('看视频讲解', 'vlink')}</div>
       <ul>${review.bullets.map(b => `<li><span>${safe(b)}</span></li>`).join('')}</ul>
       <p class="quote">${safe(review.quote)}</p>
     </div>`;
@@ -1492,6 +1502,7 @@
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 1.5h5l3 3v10H4z"/><path d="M9 1.5v3h3"/><path d="M6 9h4M6 11.5h4"/></svg>试卷 PDF</button>
           <button class="btn" type="button" data-pdf="${paperPath(year, subject, 'sol')}" data-pdf-title="${year} 年${SUBJ[subject]}解析">解析 PDF</button>
           <button class="btn" type="button" data-pdf="${reviewPath(year)}" data-pdf-title="${year} 年真题评价 & 重点题">真题评价</button>
+          <a class="btn bilibtn" href="${BILI_URL}" target="_blank" rel="noopener noreferrer" title="在 B 站看「小崔说数」的真题讲解（合集）">${BILI_ICON}视频讲解</a>
         </div>
       </header>
       <div class="scorestrip">${scores}</div>

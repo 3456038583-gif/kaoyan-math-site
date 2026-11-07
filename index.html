@@ -1127,6 +1127,39 @@ body.tzoom-open { overflow: hidden; }
 .chip.h { color: var(--hard); background: var(--hard-soft); }
 .chip.mod-tag { color: var(--muted); background: var(--mask); }
 .chip.key-tag { color: #fff; background: var(--hard); }
+/* B 站视频讲解入口：题号右侧的小胶囊。用 B 站的粉色系但压低饱和度，
+   免得和难度标签（绿/黄/红）、重点标（红）混在一起看不清。 */
+.qvlink {
+  --vl-bg: #fdf1f4;
+  --vl-bd: #ecd2da;
+  --vl-fg: #b04463;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px 1px 5px;
+  border: 1px solid var(--vl-bd);
+  border-radius: 99px;
+  background: var(--vl-bg);
+  color: var(--vl-fg);
+  font-size: 10px;
+  line-height: 1.6;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color .15s, color .15s;
+}
+.qvlink:hover { border-color: var(--vl-fg); }
+.qvlink svg { width: 11px; height: 11px; flex: 0 0 auto; }
+/* 真题评价卡标题右侧的同款入口：靠右对齐，和标题同一行 */
+.vlink { margin-left: auto; font-size: 11px; padding: 2px 9px 2px 7px; }
+/* 卷头「视频讲解」按钮（在「真题评价」右边） */
+.bilibtn { gap: 5px; }
+.bilibtn svg { width: 13px; height: 13px; }
+.bilibtn:hover { border-color: #b04463; color: #b04463; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .qvlink { --vl-bg: #2c1a21; --vl-bd: #4d2b37; --vl-fg: #e08aa0; }
+  :root:not([data-theme="light"]) .bilibtn:hover { border-color: #e08aa0; color: #e08aa0; }
+}
 /* 同题标签：同年其他试卷里也出现了这道题 */
 .same-tag {
   font-size: 10px;
@@ -1711,7 +1744,7 @@ footer .mono { font-family: var(--mono); }
   .chart-tip { min-width: 132px; }
 }
 @media print {
-  .navwrap, .pdfbtns, .filters, .ansbtn, .minilink, .headlinks, .qscore, .scorefloat, .qtimer, footer { display: none !important; }
+  .navwrap, .pdfbtns, .filters, .ansbtn, .minilink, .headlinks, .qscore, .scorefloat, .qtimer, .qvlink, .vlink, footer { display: none !important; }
   body { padding: 0; background: #fff; }
   .qcard, .card { box-shadow: none; break-inside: avoid; }
   .ansbox { display: block !important; }
