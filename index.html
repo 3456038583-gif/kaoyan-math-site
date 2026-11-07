@@ -360,6 +360,11 @@ main { padding-top: 24px; }
 }
 .yearhero .meta { margin: 0; color: var(--muted); font-size: 13px; }
 .yearhero .meta b { color: var(--ink); font-weight: 600; }
+/* 卷头整卷计时：贴在题量/建议用时那行下面 */
+.yearhero .herotimer { margin-top: 8px; display: flex; }
+.yearhero .herotimer .qtimer { font-size: 12.5px; padding: 3px 4px 3px 9px; border-radius: 8px; }
+.yearhero .herotimer .qtimer-time { font-size: 12.5px; min-width: 46px; }
+.yearhero .herotimer .qtimer-lab { font-size: 10.5px; }
 .pdfbtns { display: flex; gap: 7px; flex-wrap: wrap; }
 .btn {
   display: inline-flex;
@@ -985,8 +990,9 @@ main { padding-top: 24px; }
 }
 .qgroup-head span { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
 
-/* 计时器：选填组头、大题题头、模拟卷题行三处共用 */
+/* 计时器：卷头整卷、选填组头、大题组头/题头、模拟卷四处共用 */
 .qtimer {
+
   display: inline-flex;
   align-items: center;
   gap: 1px;

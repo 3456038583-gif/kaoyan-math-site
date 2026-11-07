@@ -597,7 +597,7 @@
   // 整段都是积分/求和这类带上下限的式子时，嵌套的上下限会很小，整体放大一点才接近试卷排版
   const bigOpt = t => !/[一-鿿]/.test(t) && /\\(?:i{1,3}nt|oint|sum|prod|lim)/.test(t);
 
-  /* ── 计时器：选填整体一个、大题每题一个，模拟卷同理 ── */
+  /* ── 计时器：整卷 / 选填 / 大题合计 / 大题每题，模拟卷同理 ── */
   // 每项存累计毫秒 acc 和本轮起点 at（null = 暂停中）。页面关掉再打开按时间戳接着走。
   const TIMER_KEY = 'kaoyanMath.timers.v1';
   const TIMERS = {};
@@ -740,7 +740,9 @@
   // 放大层顶部的说明：选填是合在一起计时的，大题按题号
   function zoomLabelOf(box) {
     const n = String(box.dataset.timer || '').split('|')[1] || '';
+    if (n === 'all') return '整套试卷 · 合计用时';
     if (n === 'sel') return '选择题 + 填空题 · 合计用时';
+    if (n === 'big') return '解答题 · 合计用时';
     if (/^\d+$/.test(n)) return `第 ${n} 题用时`;
     return box.getAttribute('title') || '本题用时';
   }
@@ -1013,7 +1015,7 @@
     const scope = paperKey(year, subject);
     if (kind === 'sel') return timerElapsed(TIMERS[`${scope}|sel`]);
     if (kind === 'big') {
-      let sum = 0;
+      let sum = timerElapsed(TIMERS[`${scope}|big`]);
       for (const q of (PAPERS[scope] || [])) {
         if (qKind(year, q.n) === 'big') sum += timerElapsed(TIMERS[`${scope}|${q.n}`]);
       }
@@ -1182,7 +1184,7 @@
       <div class="scorecard-head">
         <div>
           <div class="rtitle"><span class="mockname">${esc(mock.name)}</span><span class="mocksub">${SUBJ[mock.subject]}</span></div>
-          <p class="scmeta">${mockDate(mock.created)} 添加 · 满分 <b>150</b> · 选填 <b>80</b> + 大题 <b>70</b> · 用时 <b data-mock-time>${fmtClock(timerSum(mockScope(mock)))}</b></p>
+          <p class="scmeta">${mockDate(mock.created)} 添加 · 满分 <b>150</b> · 选填 <b>80</b> + 大题 <b>70</b> · 用时 <b data-mock-time>${fmtClock(timerSum(mockScope(mock)))}</b> ${timerHTML(`${mockScope(mock)}|all`, '整套试卷计时：同一份卷同时只走一个计时器，总用时不会重复计', '整卷')}</p>
         </div>
         <div class="scorenow"><span>当前得分</span><b data-mock-sum="total">${fmtScore(c.total.score)}</b><i>/ 150</i></div>
       </div>
@@ -1206,6 +1208,7 @@
           <span class="scblock-meta">6 题 · 70 分</span>
           <div class="scbtns">
             <button class="minibtn" type="button" data-mock-all-big title="只把尚未填写的大题补成满分，已有分数保持不变">大题全满分</button>
+            ${timerHTML(`${mockScope(mock)}|big`, '解答题（大题）合计用时，按一个单位计', '大题')}
           </div>
         </div>
         <div class="bigrows">${bigRows}</div>
@@ -1511,11 +1514,13 @@
 
     // 选择+填空算一个计时单位：两个小组的组头各放一个同样的计时器
     const selTimer = timerHTML(`${paperKey(year, subject)}|sel`, '选填（选择+填空）合计用时，按一个单位计', '选填');
+    const bigTimer = timerHTML(`${paperKey(year, subject)}|big`, '解答题（大题）合计用时，按一个单位计', '大题');
+    const allTimer = timerHTML(`${paperKey(year, subject)}|all`, '整套试卷计时：同一份卷同时只走一个计时器，总用时不会重复计', '整卷');
     const groups = groupsFor(year).map(g => {
       const qs = paper.filter(q => q.n >= g.from && q.n <= g.to);
       if (!qs.length) return '';
       return `<section class="qgroup">
-        <div class="qgroup-head"><h3>${g.title}</h3><span>${g.meta}</span>${g.to <= 16 ? selTimer : ''}</div>
+        <div class="qgroup-head"><h3>${g.title}</h3><span>${g.meta}</span>${g.to <= 16 ? selTimer : bigTimer}</div>
         ${qs.map(q => renderCard(q, subject, year, { score: true })).join('')}
       </section>`;
     }).join('');
@@ -1525,6 +1530,7 @@
           <p class="kicker">${year} · ${SUBJ[subject]}</p>
           <h2>${year} 年${SUBJ[subject]}真题</h2>
           <p class="meta">${paper.length} 题 · 满分 150 分 · 建议 <b>${review.time} 分钟</b> · 整体 <b>${review.overall}</b></p>
+          <div class="herotimer">${allTimer}</div>
         </div>
         <div class="pdfbtns">
           <button class="btn primary" type="button" data-pdf="${paperPath(year, subject, 'paper')}" data-pdf-title="${year} 年${SUBJ[subject]}试卷">
