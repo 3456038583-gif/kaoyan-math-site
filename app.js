@@ -13,6 +13,40 @@
 
   const SUBJ_VIEW = { m1: 1, m2: 2, m3: 3 };
   const LV_CLASS = { '常规': 'e', '中档': 'm', '难题': 'h' };
+
+  /* ── 内置成套模拟卷（数据在 mockdata.js，用 3200—3499 的伪年份挂进 PAPERS）── */
+  // 3201—3216 李林 6+6、3301—3308 张宇 8、3411—3423 崔命 1+2 卷；真题年份都 ≤ 2100，不会冲突
+  const MOCK_YEAR_MIN = 3000;
+  const MOCK_YEAR_MAX = 3999;
+  const isMockYear = y => y >= MOCK_YEAR_MIN && y <= MOCK_YEAR_MAX;
+  const mockPaperMeta = (year, subject) => {
+    const m = typeof MOCK_PAPERS !== 'undefined' ? MOCK_PAPERS[year] : null;
+    return m && (!m.subject || m.subject === subject) ? m : null;
+  };
+  // 错题本 / 成绩页里给「伪年份」显示套卷名，而不是「3211 年」
+  const paperLabel = (year, subject) => {
+    const m = mockPaperMeta(year, subject);
+    return m ? `${m.name} · ${SUBJ[subject]}` : `${year} 年 · ${SUBJ[subject]}`;
+  };
+  // 卷名本身已带科目时（模拟卷）不再追加「数二」，用于「我的成绩 · …」这类标题
+  const paperTitle = (year, subject) => {
+    const m = mockPaperMeta(year, subject);
+    return m ? m.name : `${year} ${SUBJ[subject]}`;
+  };
+
+  // 模拟卷题库体积不小（26 套卷），只在进「模拟卷」或错题本里确实有模拟卷题时才拉
+  let mockDataPromise = null;
+  function ensureMockData() {
+    if (typeof MOCK_PAPERS !== 'undefined') return Promise.resolve();
+    if (mockDataPromise) return mockDataPromise;
+    mockDataPromise = loadScriptOnce('/mockdata.js').catch(err => {
+      mockDataPromise = null;
+      throw err;
+    });
+    return mockDataPromise;
+  }
+  const needMockData = () => state.view === 'mock'
+    || (state.view === 'wrong' && [...WRONG].some(k => isMockYear(Number(k.split('-')[0]))));
   // 2021 年起题型改革：10 选择 + 6 填空 + 6 解答，共 22 题
   const groupsFor = year => year >= 2021
     ? [
@@ -63,7 +97,8 @@
         if (!m || !rec || typeof rec !== 'object') continue;
         const year = Number(m[1]);
         const subject = Number(m[2]);
-        if (!ALL_YEARS.includes(year)) continue;
+        // 3000+ 是内置成套模拟卷的伪年份（见 mockdata.js），与真题共用同一套成绩结构
+        if (!ALL_YEARS.includes(year) && !isMockYear(year)) continue;
         const qCount = year >= 2021 ? 22 : 23;
         // touched=false 表示这份卷子的分数只是同题自动同步过来的，用户还没在这里记录过
         const clean = { sel: {}, big: {}, touched: rec.touched !== false };
@@ -180,7 +215,28 @@
     VIEW_CACHE.clear();
   };
 
-  const state = { view: 'm1', year: 2010, level: 'all', keyOnly: false, statsSubject: 1, mockSubject: 1 };
+  const state = { view: 'm1', year: 2010, level: 'all', keyOnly: false, statsSubject: 1, mockSubject: 1, paper: 0 };
+  const POSITION_KEY = 'kaoyanMath.position.v1';
+  const VALID_VIEWS = ['m1', 'm2', 'm3', 'key', 'supp', 'wrong', 'stats', 'mock'];
+  // 从英语/政治等板块切回数学时，恢复上次使用的科目与年份。
+  function savePosition() {
+    try {
+      localStorage.setItem(POSITION_KEY, JSON.stringify({
+        view: state.view,
+        year: state.year,
+        statsSubject: state.statsSubject,
+        mockSubject: state.mockSubject
+      }));
+    } catch (e) { /* 禁用存储时仅本次会话有效 */ }
+  }
+  function loadPosition() {
+    try {
+      const p = JSON.parse(localStorage.getItem(POSITION_KEY) || 'null');
+      return p && typeof p === 'object' ? p : null;
+    } catch (e) {
+      return null;
+    }
+  }
   // 已渲染页面的 DOM 缓存（按视图 + 年份）；成绩改动后由 saveScores 统一清空
   const VIEW_CACHE = new Map();
   const VIEW_CACHE_MAX = 5;
@@ -493,8 +549,8 @@
     return { count, bySource };
   }
 
-  const paperPath = (year, subject, kind) => `pdfs/${year}/${year}-m${subject}-${kind}.pdf`;
-  const reviewPath = year => `pdfs/${year}/${year}-review.pdf`;
+  const paperPath = (year, subject, kind) => `/pdfs/${year}/${year}-m${subject}-${kind}.pdf`;
+  const reviewPath = year => `/pdfs/${year}/${year}-review.pdf`;
 
   /* ── B 站视频讲解：小崔说数《考研数学历年真题逐题精讲》合集 ──
      一套卷一个视频，P1 是「真题点评 & 重点题」，第 n 题在第 n+1 P。
@@ -579,7 +635,7 @@
       .replace(DISPLAY_INT, '\\displaystyle{\\textstyle\\$1}')
       .replace(LIMIT_OPS, '\\$1\\limits_')
       .replace(FIG_RE, (_, src) => {
-        tags.push(`<img class="qfig" src="${src.trim().replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" alt="题图">`);
+        tags.push(`<img class="qfig" src="/${src.trim().replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" alt="题图">`);
         return '\u0000' + (tags.length - 1) + '\u0001';
       })
       .replace(TBL_RE, (_, body) => { tags.push(buildTable(body)); return '\u0000' + (tags.length - 1) + '\u0001'; })
@@ -889,6 +945,31 @@
     </span>`;
   }
 
+  /* 成绩面板（我的成绩 / 模拟卷）整块收起：只留标题和当前得分 */
+  const PANEL_FOLD_KEY = 'kaoyanMath.panelFold.v1';
+  function panelFolded() {
+    try { return localStorage.getItem(PANEL_FOLD_KEY) === '1'; } catch (e) { return false; }
+  }
+  function setPanelFolded(fold) {
+    try { localStorage.setItem(PANEL_FOLD_KEY, fold ? '1' : '0'); } catch (e) {}
+  }
+  function panelToggleHTML(folded, what) {
+    const label = (folded ? '展开' : '收起') + what;
+    return `<button class="panel-toggle" type="button" data-panel-toggle data-panel-what="${what}" aria-expanded="${folded ? 'false' : 'true'}" aria-label="${label}" title="${label}"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M2.5 7.6 6 4.1 9.5 7.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
+  }
+  function togglePanelFold(card) {
+    const fold = !card.classList.contains('is-folded');
+    card.classList.toggle('is-folded', fold);
+    setPanelFolded(fold);
+    const btn = card.querySelector('[data-panel-toggle]');
+    if (btn) {
+      const label = (fold ? '展开' : '收起') + (btn.dataset.panelWhat || '成绩面板');
+      btn.setAttribute('aria-expanded', String(!fold));
+      btn.setAttribute('aria-label', label);
+      btn.setAttribute('title', label);
+    }
+  }
+
   function scorePanelHTML(year, subject) {
     const paper = PAPERS[paperKey(year, subject)] || [];
     const rec = scoreRec(year, subject);
@@ -921,13 +1002,16 @@
       </div>`;
     }).join('');
 
-    return `<section class="card scorecard${c.hasAny ? ' has-score' : ''}" data-scorecard data-year="${year}" data-subject="${subject}">
+    return `<section class="card scorecard${c.hasAny ? ' has-score' : ''}${panelFolded() ? ' is-folded' : ''}" data-scorecard data-year="${year}" data-subject="${subject}">
       <div class="scorecard-head">
         <div>
-          <div class="rtitle">我的成绩 · ${year} ${SUBJ[subject]}</div>
+          <div class="rtitle">我的成绩 · ${paperTitle(year, subject)}</div>
           <p class="scmeta">满分 <b>150</b> · 选填 <b>${c.sel.max}</b> 分 + 大题 <b>${c.big.max}</b> 分</p>
         </div>
-        <div class="scorenow"><span>当前得分</span><b data-score-sum="total">${fmtScore(c.total.score)}</b><i>/ 150</i></div>
+        <div class="sc-tools">
+          <div class="scorenow"><span>当前得分</span><b data-score-sum="total">${fmtScore(c.total.score)}</b><i>/ 150</i></div>
+          ${panelToggleHTML(panelFolded(), '成绩面板')}
+        </div>
       </div>
       <div class="scblock">
         <div class="scblock-head">
@@ -1044,16 +1128,50 @@
         : '') +
       `<div class="sf-bar"><i data-sf="bar" style="width:${pct.toFixed(1)}%"></i></div>`;
   }
+  // 收起状态：手机上默认收起成一条小胶囊，用户手动切过就按他的选择记住
+  const FLOAT_FOLD_KEY = 'kaoyanMath.floatFold.v1';
+  function floatFolded() {
+    let v = null;
+    try { v = localStorage.getItem(FLOAT_FOLD_KEY); } catch (e) {}
+    if (v === '1') return true;
+    if (v === '0') return false;
+    return window.innerWidth <= 640;
+  }
+  function setFloatFolded(fold) {
+    try { localStorage.setItem(FLOAT_FOLD_KEY, fold ? '1' : '0'); } catch (e) {}
+  }
+  function floatToggleHTML() {
+    const folded = floatFolded();
+    const label = folded ? '展开本卷得分卡' : '收起本卷得分卡';
+    return `<button class="sf-toggle" type="button" data-sf-toggle aria-expanded="${folded ? 'false' : 'true'}" aria-label="${label}" title="${label}"><svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M2.5 7.6 6 4.1 9.5 7.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
+  }
+  const floatTitle = folded => folded ? '点一下展开本卷得分卡' : '点击空白处回到「我的成绩」';
+  function toggleFloatFold(box) {
+    const fold = !box.classList.contains('is-collapsed');
+    box.classList.toggle('is-collapsed', fold);
+    setFloatFolded(fold);
+    box.setAttribute('title', floatTitle(fold));
+    const btn = box.querySelector('[data-sf-toggle]');
+    if (btn) {
+      const label = fold ? '展开本卷得分卡' : '收起本卷得分卡';
+      btn.setAttribute('aria-expanded', String(!fold));
+      btn.setAttribute('aria-label', label);
+      btn.setAttribute('title', label);
+    }
+  }
   function scoreFloatHTML(year, subject) {
     const c = computePaperScore(year, subject);
-    return `<aside class="scorefloat${c.hasAny ? ' has-score' : ''}" data-scorefloat data-year="${year}" data-subject="${subject}" title="点击空白处回到「我的成绩」">${floatBodyHTML(year, subject, c)}</aside>`;
+    const folded = floatFolded();
+    return `<aside class="scorefloat${c.hasAny ? ' has-score' : ''}${folded ? ' is-collapsed' : ''}" data-scorefloat data-year="${year}" data-subject="${subject}" title="${floatTitle(folded)}">${floatToggleHTML()}${floatBodyHTML(year, subject, c)}</aside>`;
   }
   function updateFloatScore(year, subject, c) {
     const box = appEl.querySelector('[data-scorefloat]');
     if (!box) return;
     const score = c || computePaperScore(year, subject);
-    box.innerHTML = floatBodyHTML(year, subject, score);
+    box.innerHTML = floatToggleHTML() + floatBodyHTML(year, subject, score);
     box.classList.toggle('has-score', score.hasAny);
+    box.classList.toggle('is-collapsed', floatFolded());   // 转屏 / 改窗口宽度时跟着默认值走
+    box.setAttribute('title', floatTitle(floatFolded()));
   }
 
   /* 分数有两个入口：顶部成绩面板与题目卡片。任改一处都要同步到另一处 */
@@ -1180,13 +1298,16 @@
       </div>`;
     }
 
-    return `<section class="card scorecard mockcard${c.hasAny ? ' has-score' : ''}" data-mockcard data-mock-id="${attr(mock.id)}">
+    return `<section class="card scorecard mockcard${c.hasAny ? ' has-score' : ''}${panelFolded() ? ' is-folded' : ''}" data-mockcard data-mock-id="${attr(mock.id)}">
       <div class="scorecard-head">
         <div>
           <div class="rtitle"><span class="mockname">${esc(mock.name)}</span><span class="mocksub">${SUBJ[mock.subject]}</span></div>
           <p class="scmeta">${mockDate(mock.created)} 添加 · 满分 <b>150</b> · 选填 <b>80</b> + 大题 <b>70</b> · 用时 <b data-mock-time>${fmtClock(timerSum(mockScope(mock)))}</b> ${timerHTML(`${mockScope(mock)}|all`, '整套试卷计时：同一份卷同时只走一个计时器，总用时不会重复计', '整卷')}</p>
         </div>
-        <div class="scorenow"><span>当前得分</span><b data-mock-sum="total">${fmtScore(c.total.score)}</b><i>/ 150</i></div>
+        <div class="sc-tools">
+          <div class="scorenow"><span>当前得分</span><b data-mock-sum="total">${fmtScore(c.total.score)}</b><i>/ 150</i></div>
+          ${panelToggleHTML(panelFolded(), '本卷成绩面板')}
+        </div>
       </div>
       <div class="mockmods" data-mock-mods>${mockModsHTML(c)}</div>
       <div class="scblock">
@@ -1326,14 +1447,19 @@
     const subject = state.mockSubject;
     const rows = mockRows(subject);
     const counts = mockCounts();
+    const builtin = builtinPapers(subject).length;
     const seg = [1, 2, 3].map(s =>
-      `<button class="segbtn" type="button" data-mock-subj="${s}" aria-pressed="${s === subject}">${SUBJ[s]}<span class="cnt">${counts[s]}</span></button>`
+      `<button class="segbtn" type="button" data-mock-subj="${s}" aria-pressed="${s === subject}">${SUBJ[s]}<span class="cnt">${counts[s] + builtinPapers(s).length}</span></button>`
     ).join('');
+    const bits = [];
+    if (builtin) bits.push(`已收录 <b>${builtin}</b> 套整卷`);
+    if (rows.length) bits.push(`自建 <b>${rows.length}</b> 套`);
+    if (!bits.length) bits.push('还没有模拟卷');
     const header = `<header class="yearhero statshead">
       <div>
         <p class="kicker">模拟卷</p>
         <h2>我的模拟卷</h2>
-        <p class="meta">${SUBJ[subject]} · ${rows.length ? `已添加 <b>${rows.length}</b> 套` : '还没有模拟卷'} · 按 2021 年后的 150 分结构记录 · 数据保存在本机浏览器</p>
+        <p class="meta">${SUBJ[subject]} · ${bits.join(' · ')} · 按 2021 年后的 150 分结构记录 · 成绩存在本机浏览器</p>
       </div>
       <div class="segmented" role="group" aria-label="选择科目">${seg}</div>
     </header>`;
@@ -1341,7 +1467,107 @@
       <div class="sumsec-head"><span class="sumsec-title">模拟卷明细</span><span class="sumsec-avg">按添加时间倒序</span></div>
       <p class="sumnote">每套卷按「已得 / 满分」记录；未标记的选填和未填写的大题按 0 分计。</p>
     </section>` + rows.map(r => mockCardHTML(r.mock)).join('') : '';
-    return `${header}${mockFormHTML(subject)}<div data-mock-stats>${mockStatsBlockHTML(rows, subject)}</div>${detail}`;
+    return `${header}${builtinMocksHTML(subject)}${mockFormHTML(subject)}<div data-mock-stats>${mockStatsBlockHTML(rows, subject)}</div>${detail}`;
+  }
+
+  /* ── 成套模拟卷：识别好的整卷，题目用与真题相同的卡片渲染 ── */
+  function builtinPapers(subject) {
+    if (typeof MOCK_PAPERS === 'undefined') return [];
+    return Object.keys(MOCK_PAPERS)
+      .map(Number)
+      .filter(y => MOCK_PAPERS[y] && (!subject || MOCK_PAPERS[y].subject === subject))
+      .sort((a, b) => a - b);
+  }
+
+  function builtinMocksHTML(subject) {
+    const years = builtinPapers(subject);
+    if (!years.length) return '';
+    const sets = [];
+    for (const y of years) {
+      const m = MOCK_PAPERS[y];
+      if (!sets.includes(m.set)) sets.push(m.set);
+    }
+    const cards = years.map(y => {
+      const m = MOCK_PAPERS[y];
+      const paper = PAPERS[paperKey(y, m.subject)] || [];
+      if (!paper.length) return '';
+      const c = computePaperScore(y, m.subject);
+      const started = c.total.set > 0;
+      const rec = scoreRec(y, m.subject);
+      const answered = rec ? Object.keys(rec.sel).length + Object.keys(rec.big).length : 0;
+      const status = !answered
+        ? '<span class="mp-stat">未开始</span>'
+        : `<span class="mp-stat is-on">已做 ${answered} 题 · <b>${fmtScore(c.total.score)}</b> / 150</span>`;
+      return `<button class="mockpcard" type="button" data-open-paper="${y}" data-paper-subj="${m.subject}">
+        <span class="mp-set">${esc(m.setName || m.set)}</span>
+        <strong class="mp-name">${esc(m.short || m.name)}</strong>
+        <span class="mp-meta">${SUBJ[m.subject]} · ${paper.length} 题${m.time ? ` · ${m.time} 分钟` : ''}</span>
+        ${status}
+      </button>`;
+    }).join('');
+    const done = years.map(y => {
+      const m = MOCK_PAPERS[y];
+      const c = computePaperScore(y, m.subject);
+      return c.total.set > 0 ? c.total.score : null;
+    }).filter(v => v !== null);
+    const avg = done.length ? done.reduce((a, b) => a + b, 0) / done.length : null;
+    const hint = `${years.length} 套 · 题目已识别，可计时、判分、加错题本${avg === null ? '' : ` · 已做 ${done.length} 套，平均 ${fmtScore(avg)} 分`}`;
+    return `<section class="section builtinmocks">
+      <div class="sec-head"><h2>成套模拟卷</h2><span class="hint">${hint}</span></div>
+      <p class="builtin-note">这些卷子的题目按真题样式排好：点进去就是整卷，选填点 ✓/✗、大题填分数，右上角显示实时得分；「答案 · 解析」里是原解析册的内容。</p>
+      <div class="mockpgrid">${cards}</div>
+    </section>`;
+  }
+
+  function mockPaperHTML(year, subject) {
+    const meta = mockPaperMeta(year, subject);
+    const paper = PAPERS[paperKey(year, subject)] || [];
+    if (!meta || !paper.length) {
+      return `<div class="card empty">这套模拟卷还没整理好。<button class="btn" type="button" data-close-paper>返回模拟卷</button></div>`;
+    }
+    const c = computePaperScore(year, subject);
+    const groups = groupsFor(2027);
+    const selTimer = timerHTML(`${paperKey(year, subject)}|sel`, '选填（选择+填空）合计用时，按一个单位计', '选填');
+    const bigTimer = timerHTML(`${paperKey(year, subject)}|big`, '解答题（大题）合计用时，按一个单位计', '大题');
+    const allTimer = timerHTML(`${paperKey(year, subject)}|all`, '整套试卷计时：同一份卷同时只走一个计时器，总用时不会重复计', '整卷');
+    const body = groups.map(g => {
+      const qs = paper.filter(q => q.n >= g.from && q.n <= g.to);
+      if (!qs.length) return '';
+      return `<section class="qgroup">
+        <div class="qgroup-head"><h3>${g.title}</h3><span>${g.meta}</span>${g.to <= 16 ? selTimer : bigTimer}</div>
+        ${qs.map(q => renderCard(q, subject, year, {
+          score: true,
+          pdf: meta.pdfPaper ? {
+            paper: meta.pdfPaper,
+            sol: meta.pdfSol || meta.pdfPaper,
+            paperTitle: `${meta.name} 试卷`,
+            solTitle: `${meta.name} 解析`,
+            paperLabel: '试卷 PDF',
+            solLabel: meta.pdfSol ? '解析 PDF' : '试卷 PDF'
+          } : null
+        })).join('')}
+      </section>`;
+    }).join('');
+
+    return `<header class="yearhero">
+        <div>
+          <p class="kicker">${esc(meta.setName || meta.set)} · ${SUBJ[subject]}</p>
+          <h2>${esc(meta.name)}</h2>
+          <p class="meta">${paper.length} 题 · 满分 150 分${meta.time ? ` · 建议 <b>${meta.time} 分钟</b>` : ''} · 当前得分 <b>${fmtScore(c.total.score)}</b> / 150</p>
+          <div class="herotimer">${allTimer}</div>
+        </div>
+        <div class="pdfbtns">
+          ${meta.pdfPaper ? `<button class="btn primary" type="button" data-pdf="${meta.pdfPaper}" data-pdf-title="${esc(meta.name)} 试卷">试卷 PDF</button>` : ''}
+          ${meta.pdfSol ? `<button class="btn" type="button" data-pdf="${meta.pdfSol}" data-pdf-title="${esc(meta.name)} 解析">解析 PDF</button>` : ''}
+          <button class="btn" type="button" data-close-paper>返回列表</button>
+        </div>
+      </header>
+      <section class="section">${scorePanelHTML(year, subject)}</section>
+      <section class="section">
+        <div class="sec-head"><h2>逐题精析</h2><span class="hint">点击「答案 · 解析」展开</span></div>
+        ${body || '<div class="card empty">这套卷的题目整理中</div>'}
+      </section>
+      ${scoreFloatHTML(year, subject)}`;
   }
 
   function refreshMockStats() {
@@ -1367,8 +1593,8 @@
           `<div class="opt${bigOpt(t) ? ' big' : ''}"><span class="ol">${'ABCD'[i]}</span><span>${safe(t)}</span></div>`).join('')}</div>`
       : '';
     const pdfBtns = opts.pdf
-      ? `<button class="minilink" type="button" data-pdf="${opts.pdf.paper}" data-pdf-title="${opts.pdf.paperTitle}">做题本 PDF</button>
-        <button class="minilink" type="button" data-pdf="${opts.pdf.sol}" data-pdf-title="${opts.pdf.solTitle}">做题本解析</button>`
+      ? `<button class="minilink" type="button" data-pdf="${opts.pdf.paper}" data-pdf-title="${opts.pdf.paperTitle}">${opts.pdf.paperLabel || '做题本 PDF'}</button>
+        <button class="minilink" type="button" data-pdf="${opts.pdf.sol}" data-pdf-title="${opts.pdf.solTitle}">${opts.pdf.solLabel || '做题本解析'}</button>`
       : `<button class="minilink" type="button" data-pdf="${paperPath(year, subject, 'paper')}" data-pdf-title="${year} 年${SUBJ[subject]}试卷">试卷 PDF</button>
         <button class="minilink" type="button" data-pdf="${paperPath(year, subject, 'sol')}" data-pdf-title="${year} 年${SUBJ[subject]}解析">解析 PDF</button>`;
     const originBtn = opts.origin
@@ -1410,8 +1636,15 @@
         ${originBtn}
       </div>
       <div class="ansbox" hidden>
-        <div class="ansline"><span class="lab">答案</span><b>${safe(q.a)}</b></div>
-        <div class="sol"><p>${safe(q.sol)}</p></div>
+        ${String(q.a || '').trim() ? `<div class="ansline"><span class="lab">答案</span><b>${safe(q.a)}</b></div>` : ''}
+        ${String(q.sol || '').trim()
+          ? `<div class="sol"><p>${safe(q.sol)}</p></div>`
+          : `<div class="sol"><p class="ansnone">${(() => {
+              const mp = mockPaperMeta(year, subject);
+              return mp && !mp.pdfSol
+                ? '这套卷只收了做题本，没有配套解析，答案请对照试卷 PDF 自行核对。'
+                : '这题暂未取到解析，可对照试卷 PDF 自行核对。';
+            })()}</p></div>`}
       </div>
     </article>`;
   }
@@ -1623,8 +1856,8 @@
     const groups = SUPP[year] || [];
     const total = groups.reduce((s, g) => s + g.nums.length, 0);
     const suppPdf = {
-      paper: 'pdfs/supplement/m1-supplement-paper.pdf',
-      sol: 'pdfs/supplement/m1-supplement-sol.pdf',
+      paper: '/pdfs/supplement/m1-supplement-paper.pdf',
+      sol: '/pdfs/supplement/m1-supplement-sol.pdf',
       paperTitle: `${year} 年数一补充真题做题本`,
       solTitle: `${year} 年数一补充真题解析`
     };
@@ -1664,9 +1897,9 @@
           <p class="meta">从数二、数三试卷中筛选的数一可做题 · 共 <b>${total}</b> 题</p>
         </div>
         <div class="pdfbtns">
-          <button class="btn primary" type="button" data-pdf="pdfs/supplement/m1-supplement-paper.pdf" data-pdf-title="数学（一）补充真题做题本">
+          <button class="btn primary" type="button" data-pdf="/pdfs/supplement/m1-supplement-paper.pdf" data-pdf-title="数学（一）补充真题做题本">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 1.5h5l3 3v10H4z"/><path d="M9 1.5v3h3"/><path d="M6 9h4M6 11.5h4"/></svg>做题本 PDF</button>
-          <button class="btn" type="button" data-pdf="pdfs/supplement/m1-supplement-sol.pdf" data-pdf-title="数学（一）补充真题解析">解析 PDF</button>
+          <button class="btn" type="button" data-pdf="/pdfs/supplement/m1-supplement-sol.pdf" data-pdf-title="数学（一）补充真题解析">解析 PDF</button>
         </div>
       </header>
       <div class="card supp-intro">
@@ -1700,7 +1933,7 @@
           <p class="kicker">错题本</p>
           <h2>我的错题本</h2>
           <p class="meta">${entries.length
-            ? `共 <b>${entries.length}</b> 题 · 覆盖 <b>${new Set(entries.map(e => e[0])).size}</b> 个年份 · 数一 ${entries.filter(e => e[1] === 1).length} · 数二 ${entries.filter(e => e[1] === 2).length} · 数三 ${entries.filter(e => e[1] === 3).length}`
+            ? `共 <b>${entries.length}</b> 题 · 覆盖 <b>${new Set(entries.map(e => e[0])).size}</b> 份卷 · 数一 ${entries.filter(e => e[1] === 1).length} · 数二 ${entries.filter(e => e[1] === 2).length} · 数三 ${entries.filter(e => e[1] === 3).length}`
             : '在任意题目卡片点「加入错题本」，这里就会自动归档'}</p>
         </div>
         ${entries.length ? `<div class="pdfbtns">
@@ -1724,7 +1957,7 @@
     const sections = [...byGroup.entries()].map(([k, nums]) => {
       const [year, subject] = k.split('-').map(Number);
       return `<section class="qgroup">
-        <div class="qgroup-head"><h3>${year} 年 · ${SUBJ[subject]}</h3><span>${nums.length} 题</span></div>
+        <div class="qgroup-head"><h3>${paperLabel(year, subject)}</h3><span>${nums.length} 题</span></div>
         ${nums.map(n => {
           const q = getQ(year, subject, n);
           return q ? renderCard(q, subject, year, { origin: true }) : '';
@@ -2153,7 +2386,7 @@
         const q = getQ(year, subject, n);
         return q ? printCard(q, n) : '';
       }).join('');
-      return `<section class="pgroup"><h2>${year} 年 · ${SUBJ[subject]}</h2>${cards}</section>`;
+      return `<section class="pgroup"><h2>${paperLabel(year, subject)}</h2>${cards}</section>`;
     }).join('');
 
     return `<div class="print-doc">
@@ -2180,7 +2413,7 @@
       if (!q) return;
       const big = isBigQ(year, n);
       // 题号按做题顺序重新编号，原卷出处（年份·科目·题号）放在旁边
-      const card = printCard(q, ++seq, { label: `${year} ${SUBJ[subject]}第 ${n} 题`, practice: true, big });
+      const card = printCard(q, ++seq, { label: `${paperTitle(year, subject)}第 ${n} 题`, practice: true, big });
       if (big) { flush(); pages.push([card]); }
       else { buf.push(card); if (buf.length === 2) flush(); }
     });
@@ -2240,7 +2473,7 @@
   const cacheKeyOf = () => state.view === 'stats'
     ? `stats|${state.statsSubject}|${statsChartWidth()}`
     : state.view === 'mock'
-      ? `mock|${state.mockSubject}`
+      ? `mock|${state.mockSubject}|${state.paper}`
       : `${state.view}|${state.year}`;
 
   // 难度 / 重点筛选只改显隐，不重建页面
@@ -2283,6 +2516,19 @@
 
   function render() {
     const token = ++renderToken;
+    // 模拟卷题库按需加载，加载完再真正渲染一次
+    if (needMockData() && typeof MOCK_PAPERS === 'undefined') {
+      document.documentElement.dataset.loading = 'true';
+      // 题库到位后重新走一遍 render()：错题本里可能还有真题年份要加载
+      ensureMockData().then(() => {
+        document.documentElement.dataset.loading = '';
+        if (token === renderToken) render();
+      }, () => {
+        document.documentElement.dataset.loading = '';
+        if (token === renderToken) render();
+      });
+      return;
+    }
     const missing = neededYears().filter(y => !LOADED_YEARS.has(y));
     if (missing.length) {
       document.documentElement.dataset.loading = 'true';
@@ -2301,12 +2547,20 @@
 
   function renderNow() {
     document.documentElement.dataset.view = state.view;
+    // 打开某一套模拟卷时，以题库里的科目为准（URL 里没带 subj 也能正确显示）
+    if (state.paper && typeof MOCK_PAPERS !== 'undefined' && MOCK_PAPERS[state.paper]) {
+      state.mockSubject = MOCK_PAPERS[state.paper].subject;
+    }
     try {
       const qs = new URLSearchParams({ view: state.view, year: String(state.year) });
       if (state.view === 'stats') qs.set('subj', String(state.statsSubject));
-      if (state.view === 'mock') qs.set('subj', String(state.mockSubject));
+      if (state.view === 'mock') {
+        qs.set('subj', String(state.mockSubject));
+        if (state.paper) qs.set('paper', String(state.paper));
+      }
       history.replaceState(null, '', `?${qs}`);
     } catch (e) { /* file:// 下部分浏览器不允许改写地址 */ }
+    savePosition();
 
     reconcileLoadedScores();
     reconcileLoadedTimers();
@@ -2322,7 +2576,7 @@
       else if (state.view === 'key') appEl.innerHTML = keyHTML();
       else if (state.view === 'wrong') appEl.innerHTML = wrongHTML();
       else if (state.view === 'stats') { appEl.innerHTML = statsHTML(); bindStatsCharts(); }
-      else if (state.view === 'mock') appEl.innerHTML = mockHTML();
+      else if (state.view === 'mock') appEl.innerHTML = state.paper ? mockPaperHTML(state.paper, state.mockSubject) : mockHTML();
       else appEl.innerHTML = suppHTML();
       renderMath();
       VIEW_CACHE.set(cacheKey, [...appEl.childNodes]);
@@ -2361,7 +2615,28 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function jumpTo(year, subject, n) {
+  function jumpTo(year, subject, n, smooth = true) {
+    // 内置模拟卷（伪年份）没有年份页，直接打开那一套。
+    // 题库是懒加载的：锚点可能在 mockdata.js 到位之前就跳过来，先等它加载完。
+    if (isMockYear(year)) {
+      const go = () => {
+        if (!mockPaperMeta(year, subject)) return;
+        state.view = 'mock';
+        state.paper = year;
+        state.mockSubject = subject;
+        render();
+        requestAnimationFrame(() => {
+          const el = document.getElementById(`q-${year}-${subject}-${n}`);
+          if (!el) return;
+          el.scrollIntoView({ block: 'center', behavior: smooth ? 'smooth' : 'auto' });
+          el.classList.add('flash');
+          setTimeout(() => el.classList.remove('flash'), 1700);
+        });
+      };
+      if (typeof MOCK_PAPERS === 'undefined') ensureMockData().then(go, () => {});
+      else go();
+      return;
+    }
     state.view = 'm' + subject;
     state.year = year;
     state.level = 'all';
@@ -2372,7 +2647,7 @@
       requestAnimationFrame(() => {
         const el = document.getElementById(`q-${year}-${subject}-${n}`);
         if (!el) return;
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.scrollIntoView({ block: 'center', behavior: smooth ? 'smooth' : 'auto' });
         el.classList.add('flash');
         setTimeout(() => el.classList.remove('flash'), 1700);
       });
@@ -2426,6 +2701,26 @@
       const s = Number(mockSubj.dataset.mockSubj);
       if (s === state.mockSubject) return;
       state.mockSubject = s;
+      state.paper = 0;
+      render();
+      scrollTop();
+      return;
+    }
+
+    const openPaper = e.target.closest('[data-open-paper]');
+    if (openPaper) {
+      const y = Number(openPaper.dataset.openPaper);
+      const s = Number(openPaper.dataset.paperSubj) || (MOCK_PAPERS[y] || {}).subject || state.mockSubject;
+      if (!y) return;
+      state.view = 'mock';
+      state.paper = y;
+      state.mockSubject = s;
+      render();
+      scrollTop();
+      return;
+    }
+    if (e.target.closest('[data-close-paper]')) {
+      state.paper = 0;
       render();
       scrollTop();
       return;
@@ -2571,8 +2866,27 @@
       return;
     }
 
+    const sfToggle = e.target.closest('[data-sf-toggle]');
+    if (sfToggle) {
+      const fb = sfToggle.closest('[data-scorefloat]');
+      if (fb) toggleFloatFold(fb);
+      return;
+    }
+
+    const panelToggle = e.target.closest('[data-panel-toggle]');
+    if (panelToggle) {
+      const card = panelToggle.closest('[data-scorecard], [data-mockcard]');
+      if (card) togglePanelFold(card);
+      return;
+    }
+
     const floatBox = e.target.closest('[data-scorefloat]');
     if (floatBox) {
+      // 收起状态下点整块就是展开，展开时才跳到「我的成绩」面板
+      if (floatBox.classList.contains('is-collapsed')) {
+        toggleFloatFold(floatBox);
+        return;
+      }
       const panel = appEl.querySelector('[data-scorecard]');
       if (panel) panel.scrollIntoView({ block: 'start', behavior: 'smooth' });
       return;
@@ -2728,7 +3042,7 @@
       const subject = Number(card.dataset.subject);
       const rec = scoreRec(year, subject);
       if (!rec) return;
-      if (!window.confirm(`清空 ${year} 年${SUBJ[subject]}的记录？其他科目的同题记录也会一并清除。`)) return;
+      if (!window.confirm(`清空「${paperLabel(year, subject)}」的记录？其他科目的同题记录也会一并清除。`)) return;
       const selNs = Object.keys(rec.sel).map(Number);
       const bigNs = Object.keys(rec.big).map(Number);
       delete SCORES[paperKey(year, subject)];
@@ -2962,6 +3276,7 @@
     if (btn.dataset.view === 'mock') {
       const cur = SUBJ_VIEW[state.view];
       if (cur) state.mockSubject = cur;
+      state.paper = 0;
     }
     state.view = btn.dataset.view;
     render();
@@ -3232,7 +3547,7 @@
 
   /* ── 数据迁移结束 ── */
 
-  /* ── 启动 ── */
+  /* ── 启动：显式网址参数优先，其次恢复上次位置 ── */
   const params = new URLSearchParams(location.search);
   // 数学站被总库叫来取数据：打包后跳回总库，片段不会被发到服务器
   const pullTo = params.get('pullTo');
@@ -3241,22 +3556,36 @@
     return;
   }
   if (syncFromHash()) return;
+  const previous = loadPosition();
   const pv = params.get('view');
-  if (pv && ['m1', 'm2', 'm3', 'key', 'supp', 'wrong', 'stats', 'mock'].includes(pv)) state.view = pv;
+  if (pv && VALID_VIEWS.includes(pv)) state.view = pv;
+  else if (previous && VALID_VIEWS.includes(previous.view)) state.view = previous.view;
   const ps = Number(params.get('subj'));
   if (ps >= 1 && ps <= 3) {
     state.statsSubject = ps;
     state.mockSubject = ps;
+  } else if (previous) {
+    const prevStats = Number(previous.statsSubject);
+    const prevMock = Number(previous.mockSubject);
+    if (prevStats >= 1 && prevStats <= 3) state.statsSubject = prevStats;
+    if (prevMock >= 1 && prevMock <= 3) state.mockSubject = prevMock;
   }
   const py = Number(params.get('year'));
+  const previousYear = previous ? Number(previous.year) : 0;
   const live = liveYears();
   if (live.includes(py)) state.year = py;
+  else if (!params.has('year') && live.includes(previousYear)) state.year = previousYear;
   else if (live.length && !live.includes(state.year)) state.year = live[0];
+  // 内置模拟卷：?view=mock&paper=3211&subj=2 —— 直接打开某一套
+  // 题库是懒加载的，这里只认伪年份区间，具体科目等数据到位后由 renderNow 校正
+  const pp = Number(params.get('paper'));
+  if (state.view === 'mock' && isMockYear(pp)) state.paper = pp;
   const hash = location.hash.match(/^#q-(\d{4})-(\d)-(\d+)$/);
   renderYears();
   updateWrongBadge();
   render();
-  if (hash) jumpTo(Number(hash[1]), Number(hash[2]), Number(hash[3]));
+  // 深链进来的锚点直接落位（长距离平滑滚动很晃），点链接跳转才用平滑
+  if (hash) jumpTo(Number(hash[1]), Number(hash[2]), Number(hash[3]), false);
   showSyncBanner();
 })();
 
@@ -3264,7 +3593,7 @@
 (function () {
   const el = document.getElementById('starCount');
   if (!el || typeof fetch !== 'function') return;
-  fetch('https://api.github.com/repos/3456038583-gif/kaoyan-math-site', {
+  fetch('https://api.github.com/repos/3456038583-gif/kaoyan-hub', {
     headers: { Accept: 'application/vnd.github+json' }
   })
     .then(r => (r.ok ? r.json() : null))

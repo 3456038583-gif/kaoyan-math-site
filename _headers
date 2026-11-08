@@ -1,7 +1,27 @@
 # 原卷 PDF 与 KaTeX 体积大且几乎不变，交给浏览器长期缓存；
 # 页面与脚本保持默认的每次校验，保证更新能及时生效。
+# 模拟卷单套 PDF（/pdfs/mock/）文件名不带哈希，重切后要能拿到新版，所以单独放宽到 7 天。
+/pdfs/mock/*
+  Cache-Control: public, max-age=604800
+
 /pdfs/*
   Cache-Control: public, max-age=31536000, immutable
 
 /vendor/*
   Cache-Control: public, max-age=31536000, immutable
+
+# 英语原卷 / 解析 PDF、作文配图同属不常变的大文件。
+# 文件名不带哈希，所以不用 immutable：万一日后重切配图或修 PDF，
+# 用户端最多 7 / 30 天后自然会拿到新版，不用清缓存。
+/exam/figs/*
+  Cache-Control: public, max-age=604800
+
+/exam/pdf/*
+  Cache-Control: public, max-age=2592000
+
+# 知识库索引随每次构建变化，禁止长期缓存
+/library/nav.json
+  Cache-Control: no-cache
+
+/library/search.json
+  Cache-Control: no-cache
