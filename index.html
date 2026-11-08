@@ -287,26 +287,45 @@ html[data-view="mock"] .yearbar { display: none; }
 .years::-webkit-scrollbar { display: none; }
 .year {
   flex: 0 0 auto;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   min-width: 46px;
-  height: 31px;
+  height: 36px;
   padding: 0 7px;
   border: 1px solid transparent;
-  border-radius: 16px;
+  border-radius: 18px;
   background: transparent;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 12.5px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
   cursor: pointer;
   transition: background .15s, color .15s;
 }
+/* 年份下面那行小字：做完了打勾，没做完写还差几题 */
+.year .y-st {
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--muted);
+  opacity: .9;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.year.is-done .y-st { font-size: 10px; font-weight: 600; color: var(--accent); opacity: 1; }
 .year:hover:not(:disabled) { background: var(--mask); color: var(--ink); }
 .year[aria-current="true"] {
   background: var(--ink);
   color: var(--paper);
   font-weight: 600;
 }
+.year[aria-current="true"] .y-st { color: currentColor; opacity: .7; }
+.year.is-done[aria-current="true"] .y-st { color: currentColor; opacity: .9; }
 .year:disabled { opacity: .38; cursor: default; }
 .yearnote {
   font-family: var(--mono);

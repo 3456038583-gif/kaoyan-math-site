@@ -1692,8 +1692,10 @@
     const live = liveYears();
     yearsEl.innerHTML = ALL_YEARS.map(y => {
       const on = live.includes(y);
-      return `<button class="year" type="button" data-year="${y}" aria-current="${y === state.year}"${on ? '' : ' disabled'}>${y}</button>`;
+      return `<button class="year" type="button" data-year="${y}" aria-current="${y === state.year}"${on ? '' : ' disabled'}>` +
+        `<span class="y-num">${y}</span>${on ? '<span class="y-st"></span>' : ''}</button>`;
     }).join('');
+    paintYearMarks();
     document.querySelectorAll('#modules .cnt:not(.wcnt)').forEach(el => { el.textContent = `${live.length}年`; });
     if (live.length) {
       const first = live[0], last = live[live.length - 1];
@@ -1727,8 +1729,29 @@
     return out.join('、');
   };
 
+  /* 年份按钮上的完成态：做完了打勾，没做完直接写还差几题（手动勾过的年份跟着手动的走） */
+  function paintYearMarks() {
+    const subject = SUBJ_VIEW[state.view];
+    yearsEl.querySelectorAll('.year').forEach(b => {
+      const st = b.querySelector('.y-st');
+      if (!st) return;
+      if (!subject) { st.textContent = ''; b.removeAttribute('title'); return; }
+      const y = Number(b.dataset.year);
+      const done = yearDone(y, subject);
+      const left = done ? 0 : yearUnmarked(y, subject);
+      st.textContent = done ? '✓' : left ? `${left} 题` : '待确认';
+      b.classList.toggle('is-done', done);
+      b.title = done
+        ? `${y} 年${SUBJ[subject]} · 已做完（下面那一行可以取消勾选）`
+        : left
+          ? `${y} 年${SUBJ[subject]} · 还差 ${left} 题`
+          : `${y} 年${SUBJ[subject]} · 题目都记过分了，还没勾「已做完」`;
+    });
+  }
+
   function renderYearProgress() {
     const box = document.getElementById('yearprog');
+    paintYearMarks();
     if (!box) return;
     const subject = SUBJ_VIEW[state.view];
     if (!subject) { box.hidden = true; box.innerHTML = ''; return; }
