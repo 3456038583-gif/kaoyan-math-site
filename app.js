@@ -156,6 +156,7 @@
       // 隐私模式或存储已满时忽略，页面仍可继续使用
     }
     VIEW_CACHE.clear();
+    renderYearProgress();   // 分数一变，「做完没」的提示跟着变
   };
   const fmtScore = v => {
     if (!Number.isFinite(v)) return '—';
@@ -345,6 +346,43 @@
     out.hasAny = total.any;
     return out;
   }
+
+  /* ── 整卷「做完了」标记 ──
+     默认判据：这一卷的每一题都记过（选填标了对错、大题填了分）就算做完。
+     有些年份是在纸上做的、没在这页记分，所以允许手动勾选覆盖。 */
+  const YEAR_DONE_KEY = 'kaoyanMath.yearDone.v1';
+  // 只存手动改过的年份：true = 我确认做完了，false = 我确认还没做完
+  const YEAR_DONE = {};
+  (function loadYearDone() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(YEAR_DONE_KEY) || 'null');
+      if (!raw || typeof raw !== 'object') return;
+      for (const [k, v] of Object.entries(raw)) {
+        if (/^\d{4}-[123]$/.test(k) && typeof v === 'boolean') YEAR_DONE[k] = v;
+      }
+    } catch (e) { /* 读坏了当作没手动标记过 */ }
+  })();
+  const saveYearDone = () => {
+    try { localStorage.setItem(YEAR_DONE_KEY, JSON.stringify(YEAR_DONE)); } catch (e) {}
+  };
+  // 题数按年份的卷面结构算，不必先载入那一年的题库（题库是按年懒加载的）
+  const yearQCount = year => (year >= 2021 ? 22 : 23);
+  const yearUnmarked = (year, subject) => {
+    const rec = scoreRec(year, subject);
+    const total = yearQCount(year);
+    if (!rec) return total;
+    let set = 0;
+    for (let n = 1; n <= total; n++) {
+      const v = qKind(year, n) === 'big' ? rec.big[n] : rec.sel[n];
+      if (v !== undefined) set++;
+    }
+    return total - set;
+  };
+  const autoYearDone = (year, subject) => yearUnmarked(year, subject) === 0;
+  const yearDone = (year, subject) => {
+    const v = YEAR_DONE[paperKey(year, subject)];
+    return typeof v === 'boolean' ? v : autoYearDone(year, subject);
+  };
 
   // 模拟卷没有题干，只按固定的 2021 年题位和模块折算分数
   function computeMockScore(mock) {
@@ -1677,6 +1715,56 @@
     if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
   }
 
+  /* ── 年份条下面一行：这一卷做完了没 + 还有哪些年份没做 ── */
+  const yearRangeText = list => {
+    const out = [];
+    for (let i = 0; i < list.length; i++) {
+      let j = i;
+      while (j + 1 < list.length && list[j + 1] === list[j] + 1) j++;
+      out.push(j > i ? `${list[i]}—${list[j]}` : String(list[i]));
+      i = j;
+    }
+    return out.join('、');
+  };
+
+  function renderYearProgress() {
+    const box = document.getElementById('yearprog');
+    if (!box) return;
+    const subject = SUBJ_VIEW[state.view];
+    if (!subject) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+
+    const live = liveYears();
+    const year = state.year;
+    const left = live.filter(y => !yearDone(y, subject));
+    const doneN = live.length - left.length;
+    const curDone = yearDone(year, subject);
+    const unmarked = yearUnmarked(year, subject);
+
+    const stateText = curDone
+      ? `${year}<span class="yp-subj"> · ${SUBJ[subject]}</span> 已做完`
+      : `${year}<span class="yp-subj"> · ${SUBJ[subject]}</span> 还没做完${unmarked ? ` · 还差 ${unmarked} 题` : ''}`;
+    const sum = !doneN
+      ? `0/${live.length} 年 · 还没开始`
+      : left.length
+        ? `完成 ${doneN}/${live.length} 年 · 剩 ${yearRangeText(left)}`
+        : `完成 ${doneN}/${live.length} 年 · 全部做完`;
+
+    box.classList.toggle('is-done', curDone);
+    box.innerHTML =
+      `<label class="yp-mark" title="题目全部记过分后会自动勾上；也可以自己手动勾选">` +
+        `<input type="checkbox" data-year-done${curDone ? ' checked' : ''} aria-label="把 ${year} 年${SUBJ[subject]}标记为已做完">` +
+        `<span class="yp-state">${stateText}</span>` +
+      `</label>` +
+      `<span class="yp-sum"><span class="yp-sep" aria-hidden="true">｜</span>${sum}</span>`;
+  }
+
+  function setYearDone(year, subject, done) {
+    YEAR_DONE[paperKey(year, subject)] = !!done;
+    saveYearDone();
+    renderYearProgress();
+  }
+
   /* ── 数学一/二/三：正文 ── */
   function subjectHTML(subject) {
     const year = state.year;
@@ -2592,6 +2680,7 @@
     yearsEl.querySelectorAll('.year').forEach(b => {
       b.setAttribute('aria-current', String(Number(b.dataset.year) === state.year));
     });
+    renderYearProgress();
   }
 
   function renderMath(root) {
@@ -3290,6 +3379,17 @@
     render();
     scrollTop();
   });
+
+  // 「这卷做完了」的小勾：手动标记当前年份，覆盖自动判据
+  const yearprogEl = document.getElementById('yearprog');
+  if (yearprogEl) {
+    yearprogEl.addEventListener('change', e => {
+      const cb = e.target.closest('[data-year-done]');
+      const subject = SUBJ_VIEW[state.view];
+      if (!cb || !subject) return;
+      setYearDone(state.year, subject, cb.checked);
+    });
+  }
 
   // 统计图表按容器宽度绘制，窗口尺寸变化后重画一次
   let resizeTimer = 0;

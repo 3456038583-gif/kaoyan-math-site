@@ -314,6 +314,73 @@ html[data-view="mock"] .yearbar { display: none; }
   color: var(--muted);
   white-space: nowrap;
 }
+
+/* 年份条下面那一行：这卷做完了没 + 还有哪些年份没做（可手动勾选） */
+.yearprog {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px 9px;
+  margin-top: -3px;
+  padding-bottom: 9px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.yearprog[hidden] { display: none; }
+html[data-view="wrong"] .yearprog,
+html[data-view="stats"] .yearprog,
+html[data-view="mock"] .yearprog { display: none; }
+.yp-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: -4px;
+  padding: 1px 8px 1px 4px;
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .15s, color .15s;
+}
+.yearprog.is-done .yp-mark { background: var(--accent-soft); color: var(--accent); }
+.yp-mark input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: pointer;
+  position: relative;
+  transition: background .15s, border-color .15s;
+}
+.yp-mark input:checked { background: var(--accent); border-color: var(--accent); }
+.yp-mark input:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--accent-ink);
+  border-width: 0 1.6px 1.6px 0;
+  transform: rotate(45deg);
+}
+.yp-mark input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.yearprog.is-done .yp-state { font-weight: 600; }
+.yp-sum { font-variant-numeric: tabular-nums; }
+.yp-sep { color: var(--line-strong); margin-right: 5px; }
+.yearprog.is-done .yp-sum { opacity: .85; }
+/* 手机端：去掉科目名和分隔线（当前页签已经写着数一/二/三），压成一行，别把吸顶栏撑太高 */
+@media (max-width: 640px) {
+  .yearprog { font-size: 10.5px; line-height: 1.4; gap: 2px 8px; padding-bottom: 7px; }
+  .yearprog .yp-subj, .yearprog .yp-sep { display: none; }
+}
 .hide { display: none !important; }
 
 /* ── 通用版块 ────────────────────────── */
@@ -1971,6 +2038,8 @@ html[data-loading="true"] #app::after {
         <div class="years" id="years" aria-label="年份"></div>
         <span class="yearnote" id="yearnote"></span>
       </div>
+      <!-- 这一卷做完了没 / 还有哪些年份没做，可用右侧小勾手动标记 -->
+      <div class="yearprog" id="yearprog" aria-live="polite" hidden></div>
     </div>
   </div>
 
