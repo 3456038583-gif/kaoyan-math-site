@@ -30,6 +30,8 @@
   --mid-soft: #f5ead8;
   --hard: #a33a2c;
   --hard-soft: #f4e2de;
+  --done: #16a34a;   /* 年份做完了的对勾：亮绿色 */
+  --done-on-pill: #6ee7a5;
   --shadow: 0 1px 2px rgba(27, 33, 29, .06), 0 8px 24px -18px rgba(27, 33, 29, .35);
   /* 成绩走势的固定配色：不随板块强调色变化 */
   --series-1: #2a78d6;
@@ -65,6 +67,8 @@
     --mid-soft: #2a2114;
     --hard: #e0735f;
     --hard-soft: #2d1916;
+    --done: #4ade80;
+    --done-on-pill: #15803d;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -18px rgba(0, 0, 0, .8);
     --series-1: #3987e5;
     --series-2: #d95926;
@@ -86,7 +90,7 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: 15.5px;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -101,7 +105,8 @@ body::before {
   background: var(--paper);
   z-index: 40;
 }
-.page { max-width: 880px; margin-inline: auto; }
+/* 版心：窗口越宽版心越大；同时给右下角的浮动得分卡留位置，别让卡片压到内容上 */
+.page { max-width: clamp(880px, calc(100% - 476px), 1080px); margin-inline: auto; }
 
 /* ── 页眉 ───────────────────────────── */
 .masthead {
@@ -203,7 +208,8 @@ h1 {
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-.navinner { max-width: 880px; margin-inline: auto; }
+/* navwrap 的可用宽度就等于版心宽度，这里跟着版心走即可 */
+.navinner { max-width: 100%; margin-inline: auto; }
 .modules {
   display: flex;
   align-items: center;
@@ -278,29 +284,42 @@ html[data-view="mock"] .yearbar { display: none; }
 }
 .years {
   display: flex;
-  gap: 5px;
+  gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   flex: 1;
 }
 .years::-webkit-scrollbar { display: none; }
+/* 年份条放不下时才渐隐边缘：示意还能横向滑 */
+.years.is-scroll.at-start {
+  mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent);
+}
+.years.is-scroll.at-end {
+  mask-image: linear-gradient(to right, transparent 0, #000 56px);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 56px);
+}
+.years.is-scroll:not(.at-start):not(.at-end) {
+  mask-image: linear-gradient(to right, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
+}
 .year {
   flex: 0 0 auto;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 3px;
   min-width: 46px;
-  height: 36px;
-  padding: 0 7px;
+  height: 40px;
+  padding: 0 6px;
   border: 1px solid transparent;
-  border-radius: 18px;
+  border-radius: 20px;
   background: transparent;
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -309,7 +328,7 @@ html[data-view="mock"] .yearbar { display: none; }
 }
 /* 年份下面那行小字：做完了打勾，没做完写还差几题 */
 .year .y-st {
-  font-size: 9px;
+  font-size: 9.5px;
   font-weight: 500;
   line-height: 1;
   color: var(--muted);
@@ -317,7 +336,7 @@ html[data-view="mock"] .yearbar { display: none; }
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.year.is-done .y-st { font-size: 10px; font-weight: 600; color: var(--accent); opacity: 1; }
+.year.is-done .y-st { font-size: 10.5px; font-weight: 700; color: var(--done); opacity: 1; }
 .year:hover:not(:disabled) { background: var(--mask); color: var(--ink); }
 .year[aria-current="true"] {
   background: var(--ink);
@@ -325,7 +344,7 @@ html[data-view="mock"] .yearbar { display: none; }
   font-weight: 600;
 }
 .year[aria-current="true"] .y-st { color: currentColor; opacity: .7; }
-.year.is-done[aria-current="true"] .y-st { color: currentColor; opacity: .9; }
+.year.is-done[aria-current="true"] .y-st { color: var(--done-on-pill); opacity: 1; }
 .year:disabled { opacity: .38; cursor: default; }
 /* 年份条右端的小按钮：点开才显示下面那行「这卷做完没 + 还剩哪些年份」 */
 .yprog-btn {
@@ -333,20 +352,20 @@ html[data-view="mock"] .yearbar { display: none; }
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  height: 25px;
-  padding: 0 8px 0 6px;
+  height: 28px;
+  padding: 0 10px 0 7px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--surface);
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11.5px;
   line-height: 1;
   cursor: pointer;
   transition: background .15s, color .15s, border-color .15s;
 }
 .yprog-btn[hidden] { display: none; }
-.yprog-btn svg { width: 11px; height: 11px; transition: transform .2s ease; }
+.yprog-btn svg { width: 12px; height: 12px; transition: transform .2s ease; }
 .yprog-btn:hover { background: var(--mask); color: var(--ink); border-color: var(--line-strong); }
 .yprog-btn[aria-expanded="true"] {
   background: var(--mask);
@@ -465,7 +484,7 @@ main { padding-top: 24px; }
   font-size: clamp(24px, 5.6vw, 32px);
   line-height: 1.2;
 }
-.yearhero .meta { margin: 0; color: var(--muted); font-size: 13px; }
+.yearhero .meta { margin: 0; color: var(--muted); font-size: 13.5px; }
 .yearhero .meta b { color: var(--ink); font-weight: 600; }
 /* 卷头整卷计时：贴在题量/建议用时那行下面 */
 .yearhero .herotimer { margin-top: 8px; display: flex; }
@@ -573,10 +592,10 @@ main { padding-top: 24px; }
   gap: 8px;
   font-family: var(--serif);
   font-weight: 700;
-  font-size: 16px;
+  font-size: 17px;
 }
 .scorecard .rtitle::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--accent); }
-.scmeta { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+.scmeta { margin: 3px 0 0; font-size: 12.5px; color: var(--muted); }
 .scmeta b { color: var(--ink); font-weight: 600; }
 .scorenow { display: flex; align-items: baseline; gap: 5px; font-family: var(--mono); }
 .scorenow span { font-size: 10.5px; letter-spacing: .06em; color: var(--muted); }
@@ -601,18 +620,18 @@ main { padding-top: 24px; }
 .scblock-head h4 {
   margin: 0;
   font-family: var(--serif);
-  font-size: 14.5px;
+  font-size: 15.5px;
   font-weight: 700;
 }
-.scblock-meta { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.scblock-meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
 .scbtns { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
 .minibtn {
   border: 1px solid var(--line-strong);
   background: var(--surface);
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 11.5px;
-  padding: 4px 9px;
+  font-size: 12.5px;
+  padding: 4px 10px;
   border-radius: 7px;
   cursor: pointer;
   white-space: nowrap;
@@ -624,18 +643,18 @@ main { padding-top: 24px; }
 .qsbtn:focus-visible,
 .copybtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .qsgroup { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
-.qsgroup-lab { flex: 0 0 32px; padding-top: 6px; font-size: 11px; color: var(--muted); }
-.qsgrid { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.qsgroup-lab { flex: 0 0 34px; padding-top: 7px; font-size: 12px; color: var(--muted); }
+.qsgrid { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .qsbtn {
-  width: 30px;
-  height: 28px;
+  width: 34px;
+  height: 31px;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--surface);
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12.5px;
   line-height: 1;
   cursor: pointer;
   transition: background .15s, color .15s, border-color .15s;
@@ -660,8 +679,8 @@ main { padding-top: 24px; }
   background: transparent;
   font-weight: 600;
 }
-.scsum { margin: 7px 0 0; font-size: 11.5px; color: var(--muted); }
-.scsum b { font-family: var(--mono); font-size: 12px; color: var(--ink); font-weight: 600; }
+.scsum { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+.scsum b { font-family: var(--mono); font-size: 13px; color: var(--ink); font-weight: 600; }
 .bigrows { display: grid; gap: 0; }
 .bigrow {
   display: flex;
@@ -672,11 +691,11 @@ main { padding-top: 24px; }
   border-bottom: 1px solid var(--line);
 }
 .bigrow:last-child { border-bottom: 0; }
-.bigq { flex: 0 0 26px; font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.bigq { flex: 0 0 28px; font-family: var(--mono); font-size: 13px; font-weight: 600; }
 .bigmeta {
   flex: 1 1 120px;
   min-width: 0;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -685,15 +704,15 @@ main { padding-top: 24px; }
 .bigmeta b { color: var(--ink); font-weight: 500; }
 .biginput { flex: 0 0 auto; display: inline-flex; align-items: baseline; gap: 4px; }
 .biginput input {
-  width: 62px;
-  height: 30px;
+  width: 68px;
+  height: 32px;
   padding: 0 6px;
   border: 1px solid var(--line-strong);
   border-radius: 7px;
   background: var(--surface);
   color: var(--ink);
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -702,7 +721,7 @@ main { padding-top: 24px; }
 }
 .biginput input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
 .biginput input::placeholder { color: var(--line-strong); font-weight: 500; }
-.bigmax { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.bigmax { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
 .copybtn {
   border: 1px dashed var(--line-strong);
   background: transparent;

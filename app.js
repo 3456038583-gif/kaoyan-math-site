@@ -1688,6 +1688,15 @@
   }
 
   /* ── 年份条 ── */
+  /* 年份条放不下时左右边缘渐隐，提示还能横向滑动 */
+  function paintYearFade() {
+    const max = yearsEl.scrollWidth - yearsEl.clientWidth;
+    yearsEl.classList.toggle('is-scroll', max > 1);
+    yearsEl.classList.toggle('at-start', yearsEl.scrollLeft <= 1);
+    yearsEl.classList.toggle('at-end', yearsEl.scrollLeft >= max - 1);
+  }
+  yearsEl.addEventListener('scroll', paintYearFade, { passive: true });
+  window.addEventListener('resize', paintYearFade);
   function renderYears() {
     const live = liveYears();
     yearsEl.innerHTML = ALL_YEARS.map(y => {
@@ -1712,6 +1721,7 @@
     }
     const cur = yearsEl.querySelector('[aria-current="true"]');
     if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
+    paintYearFade();
   }
 
   /* ── 年份条下面一行：这一卷做完了没 + 还有哪些年份没做 ── */
