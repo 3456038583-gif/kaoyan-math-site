@@ -327,12 +327,33 @@ html[data-view="mock"] .yearbar { display: none; }
 .year[aria-current="true"] .y-st { color: currentColor; opacity: .7; }
 .year.is-done[aria-current="true"] .y-st { color: currentColor; opacity: .9; }
 .year:disabled { opacity: .38; cursor: default; }
-.yearnote {
+/* 年份条右端的小按钮：点开才显示下面那行「这卷做完没 + 还剩哪些年份」 */
+.yprog-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 25px;
+  padding: 0 8px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
   font-family: var(--mono);
   font-size: 10.5px;
-  color: var(--muted);
-  white-space: nowrap;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
 }
+.yprog-btn[hidden] { display: none; }
+.yprog-btn svg { width: 11px; height: 11px; transition: transform .2s ease; }
+.yprog-btn:hover { background: var(--mask); color: var(--ink); border-color: var(--line-strong); }
+.yprog-btn[aria-expanded="true"] {
+  background: var(--mask);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.yprog-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
 
 /* 年份条下面那一行：这卷做完了没 + 还有哪些年份没做（可手动勾选） */
 .yearprog {
@@ -809,34 +830,45 @@ main { padding-top: 24px; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.yearcard { padding: 14px 17px 9px; margin-top: 12px; }
-.yearcard .sumsec-head { border-bottom: 0; padding-bottom: 2px; }
-.yearcard-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
-.yearopen { text-decoration: none; }
-.scorerows { display: grid; }
-.scorerow {
+/* 逐年分数表：年份 / 选择 / 填空 / 大题 / 总分，每格写「得分 / 满分」 */
+.yt-row {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) 92px;
+  grid-template-columns: 46px repeat(3, minmax(0, 1fr)) 80px;
   align-items: center;
-  gap: 10px;
-  padding: 7px 2px;
+  gap: 8px;
+  padding: 9px 2px;
   border-bottom: 1px solid var(--line);
-}
-.scorerow:last-child { border-bottom: 0; }
-.scorerow-lab { font-size: 12px; color: var(--muted); }
-.scorerow.strong .scorerow-lab { color: var(--ink); font-weight: 600; }
-.smeter { height: 5px; border-radius: 3px; background: var(--mask); overflow: hidden; }
-.smeter i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
-.scorerow-score {
-  font-family: var(--mono);
-  font-size: 13px;
-  font-weight: 600;
-  text-align: right;
-  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.scorerow-score i { font-style: normal; font-size: 10px; font-weight: 500; color: var(--muted); margin-left: 2px; }
-.scorerow-score.empty { color: var(--line-strong); font-weight: 500; }
+.yt-row:last-of-type { border-bottom: 0; }
+.yt-head { padding: 7px 2px 6px; border-bottom: 0; }
+.yt-head span {
+  font-size: 9.5px;
+  letter-spacing: .06em;
+  color: var(--muted);
+  text-align: right;
+}
+.yt-head span:first-child { text-align: left; }
+.yt-year {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.yt-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.yt-cell b { font-size: 13px; font-weight: 600; color: var(--ink); }
+.yt-cell i { font-style: normal; font-size: 9.5px; color: var(--muted); }
+.yt-cell.is-empty b { color: var(--line-strong); font-weight: 500; }
+.yt-cell.is-total b { color: var(--accent); }
+.yt-cell.is-total i { font-size: 10px; }
 .sumnote { margin: 9px 0 0; font-size: 11px; line-height: 1.6; color: var(--muted); }
 .statsempty { padding: 30px 20px 32px; text-align: center; }
 .statsempty p { margin: 0 0 7px; font-size: 13px; color: var(--muted); }
@@ -1873,8 +1905,8 @@ footer .mono { font-family: var(--mono); }
     color: var(--accent-ink);
   }
   /* 年份条给足宽度，右侧渐隐提示可横向滑动 */
-  .yearbar { gap: 0; }
-  .yearnote { display: none; }
+  .yearbar { gap: 6px; }
+  .yprog-btn { height: 28px; padding: 0 8px 0 7px; font-size: 11px; }
   .years {
     mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
@@ -1884,7 +1916,6 @@ footer .mono { font-family: var(--mono); }
   .statshead { display: block; }
   .segmented { margin-top: 12px; width: 100%; }
   .segbtn { flex: 1; padding: 8px 5px; text-align: center; }
-  .scorerow { grid-template-columns: 56px minmax(0, 1fr) 82px; gap: 8px; }
   .mockfield, .mockfield--subj { flex: 1 1 100%; }
   .mockadd { width: 100%; justify-content: center; }
 }
@@ -1929,9 +1960,8 @@ footer .mono { font-family: var(--mono); }
   .scorefoot-btns { margin-left: 0; width: 100%; }
   .stat { padding: 9px 10px; }
   .stat-value { font-size: 21px; }
-  .scorerow { grid-template-columns: 48px minmax(0, 1fr) 72px; gap: 7px; }
-  .scorerow-score { font-size: 12px; }
-  .yearcard { padding: 12px 13px 7px; }
+  .yt-row { grid-template-columns: 42px repeat(3, minmax(0, 1fr)) 72px; gap: 5px; padding: 8px 1px; }
+  .yt-cell b { font-size: 12px; }
   .chart-tip { min-width: 132px; }
 }
 @media print {
@@ -2055,9 +2085,12 @@ html[data-loading="true"] #app::after {
       </nav>
       <div class="yearbar" id="yearbar">
         <div class="years" id="years" aria-label="年份"></div>
-        <span class="yearnote" id="yearnote"></span>
+        <button class="yprog-btn" type="button" id="yprogBtn" aria-expanded="false" aria-controls="yearprog" title="显示 / 隐藏「这卷做完没」与剩余年份">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5 8 10l3.5-3.5"/></svg>
+          <span>进度</span>
+        </button>
       </div>
-      <!-- 这一卷做完了没 / 还有哪些年份没做，可用右侧小勾手动标记 -->
+      <!-- 这一卷做完了没 / 还有哪些年份没做，可用右侧小勾手动标记；默认收起，点「进度」展开 -->
       <div class="yearprog" id="yearprog" aria-live="polite" hidden></div>
     </div>
   </div>

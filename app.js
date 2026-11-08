@@ -4,7 +4,7 @@
 
   const appEl = document.getElementById('app');
   const yearsEl = document.getElementById('years');
-  const noteEl = document.getElementById('yearnote');
+  const yprogBtn = document.getElementById('yprogBtn');
   const modulesEl = document.getElementById('modules');
   const sheetEl = document.getElementById('pdfsheet');
   const frameEl = document.getElementById('pdfFrame');
@@ -1700,7 +1700,6 @@
     if (live.length) {
       const first = live[0], last = live[live.length - 1];
       const contiguous = live.every((y, i) => y === first + i);
-      noteEl.textContent = contiguous ? `已上线 ${first}—${last} · 其余整理中` : `已上线 ${live.length} 年 · 其余整理中`;
       const subB = document.querySelector('.sub b');
       if (subB) subB.textContent = contiguous ? `已上线 ${first}—${last}` : `已上线 ${live.length} 年`;
       // 页脚统计：已上线年份的套卷数与题目总数
@@ -1710,8 +1709,6 @@
         const total = live.reduce((a, y) => a + (YEAR_INFO[y] || 0), 0);
         foot.textContent = `${first}—${last} · ${papers} 套卷 · ${total} 题`;
       }
-    } else {
-      noteEl.textContent = '整理中';
     }
     const cur = yearsEl.querySelector('[aria-current="true"]');
     if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
@@ -1749,12 +1746,34 @@
     });
   }
 
+  /* 下面那一行默认收起，点年份条右端的「进度」才展开（默认不占位置） */
+  const YPROG_OPEN_KEY = 'kaoyanMath.yearProgOpen.v1';
+  let yprogOpenMem = null;
+  function yprogOpen() {
+    if (yprogOpenMem !== null) return yprogOpenMem;
+    try { return localStorage.getItem(YPROG_OPEN_KEY) === '1'; } catch (e) { return false; }
+  }
+  function setYprogOpen(open) {
+    yprogOpenMem = !!open;
+    try { localStorage.setItem(YPROG_OPEN_KEY, open ? '1' : '0'); } catch (e) {
+      // 隐私模式下存不了，按本次打开的状态凑合
+    }
+    renderYearProgress();
+  }
+
   function renderYearProgress() {
     const box = document.getElementById('yearprog');
     paintYearMarks();
     if (!box) return;
     const subject = SUBJ_VIEW[state.view];
+    const open = yprogOpen();
+    if (yprogBtn) {
+      yprogBtn.hidden = !subject;
+      yprogBtn.setAttribute('aria-expanded', String(!!subject && open));
+      yprogBtn.title = open ? '收起这一行的完成情况' : '显示「这卷做完没」与剩余年份';
+    }
     if (!subject) { box.hidden = true; box.innerHTML = ''; return; }
+    if (!open) { box.hidden = true; return; }
     box.hidden = false;
 
     const live = liveYears();
@@ -2352,41 +2371,24 @@
     });
   }
 
-  function yearCardHTML(r) {
-    const totalReady = completePart(r.total);
-    const defs = [
-      ['choice', '选择', r.choice],
-      ['fill', '填空', r.fill],
-      ['sel', '选填', r.sel],
-      ['big', '大题', r.big],
-      ['total', '总分', r.total],
-      ['高数', '高数', r['高数']],
-      ['线代', '线代', r['线代']],
-      ['概率', '概率', r['概率']]
-    ];
-    // 只展示已经全部记录完的题型/模块；未填完的不参与统计
-    const rows = defs.filter(([, , c]) => completePart(c)).map(([key, label, c]) => {
-      const pct = Math.min(100, c.score / c.max * 100);
-      const score = `${fmtScore(c.score)}<i>/ ${c.max}</i>`;
-      const strong = key === 'sel' || key === 'big' || key === 'total';
-      return `<div class="scorerow${strong ? ' strong' : ''}">
-        <span class="scorerow-lab">${label}</span>
-        <span class="smeter"><i style="width:${pct.toFixed(1)}%"></i></span>
-        <span class="scorerow-score">${score}</span>
-      </div>`;
-    }).join('');
-
-    const totalText = totalReady ? `${fmtScore(r.total.score)} / 150 · ${Math.round(r.total.pct)}%` : '总分未填完，不计入统计';
-    return `<section class="card yearcard">
-      <div class="sumsec-head">
-        <span class="sumsec-title">${r.year} 年 · ${shortSubj(r.subject)}</span>
-        <span class="yearcard-actions">
-          <span class="sumsec-avg">${totalText}</span>
-          <button class="minibtn yearopen" type="button" data-stats-open="${r.year},${r.subject}">查看试卷</button>
-        </span>
-      </div>
-      <div class="scorerows">${rows}</div>
-    </section>`;
+  /* 逐年分数表：年份 / 选择 / 填空 / 大题 / 总分，每格写「得分 / 满分」。
+     某一类题目没记完时只写「—」和已记题数，口径和上面的均分一致（不计入统计） */
+  function yearTableHTML(rows) {
+    const cell = (c, extra = '') => {
+      if (!c || !c.count) return `<span class="yt-cell is-empty${extra}"><b>—</b></span>`;
+      if (!completePart(c)) return `<span class="yt-cell is-empty${extra}"><b>—</b><i>${c.set}/${c.count}</i></span>`;
+      return `<span class="yt-cell${extra}"><b>${fmtScore(c.score)}</b><i>/ ${c.max}</i></span>`;
+    };
+    const body = rows.map(r => `<div class="yt-row">
+        <span class="yt-year">${r.year}</span>
+        ${cell(r.choice)}${cell(r.fill)}${cell(r.big)}${cell(r.total, ' is-total')}
+      </div>`).join('');
+    return `<section class="sumsec ytable">
+        <div class="sumsec-head"><span class="sumsec-title">逐年分数</span><span class="sumsec-avg">按年份倒序</span></div>
+        <div class="yt-row yt-head"><span>年份</span><span>选择</span><span>填空</span><span>大题</span><span>总分</span></div>
+        ${body}
+        <p class="sumnote">每格是「得分 / 满分」：2021 年起选择题 50 分、填空题 30 分、解答题 70 分，之前分别是 32 / 24 / 94。某一类题目没记完时只显示「—」和已记题数，和上面的均分一样不计入统计。</p>
+      </section>`;
   }
 
   function statsHTML() {
@@ -2443,13 +2445,9 @@
     const charts = chartSection('题型趋势', TYPE_SERIES, '只有该题型全部题目都记录后才绘出；未填完的选填和大题不参与走势。')
       + chartSection('模块趋势', MODULE_SERIES, '只有该模块全部题目都记录后才绘出；数二不考概率，因此不会出现在图里。');
 
-    const detail = `<section class="sumsec">
-        <div class="sumsec-head"><span class="sumsec-title">逐年明细</span><span class="sumsec-avg">按年份倒序</span></div>
-        <p class="sumnote">只显示已经填写完整的题型和模块，未填完的部分不计入统计；每一行都是「已得 / 满分」。</p>
-      </section>` + rows.map(yearCardHTML).join('');
-
     return `${header}<div class="stats">${cards}</div>
-      <p class="sumnote">均分按 2021 年改革前后分开统计；每个分段只计入对应部分题目已全部记录的成绩，未填完的不参与统计。总分满分始终是 150 分，因此另外保留了全部年份的均分。</p>${charts}${detail}`;
+      <p class="sumnote">均分按 2021 年改革前后分开统计；每个分段只计入对应部分题目已全部记录的成绩，未填完的不参与统计。总分满分始终是 150 分，因此另外保留了全部年份的均分。</p>
+      ${yearTableHTML(allRows)}${charts}`;
   }
 
   /* ── 错题本导出 PDF：另建一份只用于打印的版式，交给浏览器「存储为 PDF」 ── */
@@ -3252,18 +3250,6 @@
       return;
     }
 
-    const statsOpen = e.target.closest('[data-stats-open]');
-    if (statsOpen) {
-      const [y, s] = statsOpen.dataset.statsOpen.split(',').map(Number);
-      state.view = `m${s}`;
-      state.year = y;
-      state.level = 'all';
-      state.keyOnly = false;
-      render();
-      scrollTop();
-      return;
-    }
-
     const statsStart = e.target.closest('[data-stats-start]');
     if (statsStart) {
       const s = Number(statsStart.dataset.statsStart);
@@ -3412,6 +3398,11 @@
       if (!cb || !subject) return;
       setYearDone(state.year, subject, cb.checked);
     });
+  }
+
+  // 年份条右端的「进度」按钮：展开 / 收起下面那一行
+  if (yprogBtn) {
+    yprogBtn.addEventListener('click', () => setYprogOpen(!yprogOpen()));
   }
 
   // 统计图表按容器宽度绘制，窗口尺寸变化后重画一次
