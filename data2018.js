@@ -65,7 +65,7 @@ PAPERS['2018-1'] = [
     null, R`存在，最小值为 $\dfrac1{\pi+4+3\sqrt3}$`,
     R`设三段长 $x,y,z$，$x+y+z=2$，面积和 $S=\frac{x^2}{4\pi}+\frac{y^2}{16}+\frac{\sqrt3}{36}z^2$．拉格朗日乘数法得 $x=\frac{2\pi}k$，$y=\frac8k$，$z=\frac{6\sqrt3}k$（$k=\pi+4+3\sqrt3$），此时 $S=\frac1k$；再比较边界上的最小值 $\frac1{4+3\sqrt3},\frac1{\pi+3\sqrt3},\frac1{\pi+4}$，均大于 $\frac1k$，故最小值存在且为 $\frac1{\pi+4+3\sqrt3}$．`),
   Q(17, '高数', '第二型曲面积分', '中档', 3,
-    R`设 $\Sigma$ 是曲面 $x=\sqrt{1-3y^2-3z^2}$ 的前侧，计算曲面积分 $\iint_\Sigma xy\,dydz+(y^3+2)\,dzdx+z^2\,dxdy$．`,
+    R`设 $\Sigma$ 是曲面 $x=\sqrt{1-3y^2-3z^2}$ 的前侧，计算曲面积分 $\iint_\Sigma x\,dydz+(y^3+2)\,dzdx+z^3\,dxdy$．`,
     null, R`$\dfrac{14\pi}{45}$`,
     R`补平面 $\Sigma_1:x=0\ (3y^2+3z^2\le1)$ 的后侧，用高斯公式，散度为 $1+3y^2+3z^2$，而 $\Sigma_1$ 上的积分为 0．化为柱坐标得 $\iiint_\Omega(1+3y^2+3z^2)dV=2\pi\int_0^{1/\sqrt3}r(1+3r^2)\sqrt{1-3r^2}\,dr=\frac{14\pi}{45}$．`),
   Q(18, '高数', '一阶微分方程解的性质', '难题', 4,

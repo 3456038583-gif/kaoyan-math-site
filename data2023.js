@@ -135,7 +135,7 @@ PAPERS['2023-2'] = [
     null, R`$-2$`,
     R`$g(x)=e^{x^2}-\cos x=\dfrac{3}{2}x^2+o(x^2)$，而 $f(x)=(a+1)x+\left(b-\dfrac{1}{2}\right)x^2+o(x^2)$．等价要求一次项系数为 0、二次项系数相等，得 $a=-1$，$b-\dfrac{1}{2}=\dfrac{3}{2}$ 即 $b=2$，故 $ab=-2$．`),
   Q(12, '高数', '曲线弧长', '难题', 4,
-    R`曲线 $y=\int_{\sqrt{3}}^{x}\sqrt{3-t^2}dt$ 的弧长为 $\underline{\qquad}$．`,
+    R`曲线 $y=\int_{-\sqrt{3}}^{x}\sqrt{3-t^2}dt$ 的弧长为 $\underline{\qquad}$．`,
     null, R`$\sqrt{3}+\dfrac{4\pi}{3}$`,
     R`$y'=\sqrt{3-x^2}$，定义域 $-\sqrt3\le x\le\sqrt3$．弧长 $l=\int_{-\sqrt3}^{\sqrt3}\sqrt{1+y'^2}dx=\int_{-\sqrt3}^{\sqrt3}\sqrt{4-x^2}dx=2\int_0^{\sqrt3}\sqrt{4-x^2}dx$，令 $x=2\sin t$ 得 $l=2\int_0^{\pi/3}4\cos^2t\,dt=\sqrt3+\dfrac{4\pi}{3}$．`),
   Q(13, '高数', '隐函数求偏导', '常规', 2,
