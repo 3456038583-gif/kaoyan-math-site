@@ -632,7 +632,9 @@
   const LIMIT_OPS = /\\(lim|limsup|liminf|varlimsup|varliminf|max|min|sup|inf|sum|prod|coprod|bigcup|bigcap)_/g;
   // KaTeX 在 \displaystyle 下会把 \int 的上下限堆到正上/正下（\nolimits 也压不住），
   // 把紧跟在 \displaystyle 后面的积分号换成 textstyle 版本，上下限就回到右上方/右下方
-  const DISPLAY_INT = /\\displaystyle\s*\\(int|iint|iiint|oint)(?![A-Za-z])/g;
+  // \limits / \nolimits 必须跟着积分号一起进花括号，否则会报
+  // “Limit controls must follow a math operator”
+  const DISPLAY_INT = /\\displaystyle\s*\\(int|iint|iiint|oint)((?:\s*\\(?:limits|nolimits))?)(?![A-Za-z])/g;
 
   // 试卷里的表格（联合分布表等）按原样画出来，改写成 "P{X=…}=…" 罗列会改变题面。
   // 写法：<tbl>X\Y|$0$|$1$|$2$;$0$|$\frac14$|$0$|…</tbl>
@@ -670,7 +672,7 @@
   const safe = s => {
     const tags = [];
     return String(s)
-      .replace(DISPLAY_INT, '\\displaystyle{\\textstyle\\$1}')
+      .replace(DISPLAY_INT, '\\displaystyle{\\textstyle\\$1$2}')
       .replace(LIMIT_OPS, '\\$1\\limits_')
       .replace(FIG_RE, (_, src) => {
         tags.push(`<img class="qfig" src="/${src.trim().replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" alt="题图">`);
