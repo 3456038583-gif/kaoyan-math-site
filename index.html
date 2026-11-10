@@ -431,6 +431,9 @@ html[data-view="mock"] .yearprog { display: none; }
   transform: rotate(45deg);
 }
 .yp-mark input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 题都记过分时自动打勾：勾是实心的，但不用再点，所以不给手型光标、不作置灰处理 */
+.yp-mark.is-auto { cursor: default; }
+.yp-mark input:disabled { cursor: default; opacity: 1; }
 .yearprog.is-done .yp-state { font-weight: 600; }
 .yp-sum { font-variant-numeric: tabular-nums; }
 .yp-sep { color: var(--line-strong); margin-right: 5px; }

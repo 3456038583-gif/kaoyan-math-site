@@ -348,17 +348,17 @@
   }
 
   /* ── 整卷「做完了」标记 ──
-     默认判据：这一卷的每一题都记过（选填标了对错、大题填了分）就算做完。
-     有些年份是在纸上做的、没在这页记分，所以允许手动勾选覆盖。 */
+     判据：这一卷的每一题都记过（选填标了对错、大题填了分）就自动算做完，直接打勾，
+     不用再手动确认。有些年份是在纸上做的、没在这页记分，可以手动补勾一个「已做完」。 */
   const YEAR_DONE_KEY = 'kaoyanMath.yearDone.v1';
-  // 只存手动改过的年份：true = 我确认做完了，false = 我确认还没做完
+  // 只存手动补勾的年份（true）；题都记过分的年份由自动判据给出，不占存储
   const YEAR_DONE = {};
   (function loadYearDone() {
     try {
       const raw = JSON.parse(localStorage.getItem(YEAR_DONE_KEY) || 'null');
       if (!raw || typeof raw !== 'object') return;
       for (const [k, v] of Object.entries(raw)) {
-        if (/^\d{4}-[123]$/.test(k) && typeof v === 'boolean') YEAR_DONE[k] = v;
+        if (/^\d{4}-[123]$/.test(k) && v === true) YEAR_DONE[k] = true;
       }
     } catch (e) { /* 读坏了当作没手动标记过 */ }
   })();
@@ -379,10 +379,8 @@
     return total - set;
   };
   const autoYearDone = (year, subject) => yearUnmarked(year, subject) === 0;
-  const yearDone = (year, subject) => {
-    const v = YEAR_DONE[paperKey(year, subject)];
-    return typeof v === 'boolean' ? v : autoYearDone(year, subject);
-  };
+  // 题目都记过分就一定打勾；手动补勾只做「加法」，不会把已做完的卷子退回未完成
+  const yearDone = (year, subject) => YEAR_DONE[paperKey(year, subject)] === true || autoYearDone(year, subject);
 
   // 模拟卷没有题干，只按固定的 2021 年题位和模块折算分数
   function computeMockScore(mock) {
@@ -1738,7 +1736,7 @@
     return out.join('、');
   };
 
-  /* 年份按钮上的完成态：做完了打勾，没做完直接写还差几题（手动勾过的年份跟着手动的走） */
+  /* 年份按钮上的完成态：题都记过分直接打勾，没做完就写还差几题 */
   function paintYearMarks() {
     const subject = SUBJ_VIEW[state.view];
     yearsEl.querySelectorAll('.year').forEach(b => {
@@ -1748,13 +1746,11 @@
       const y = Number(b.dataset.year);
       const done = yearDone(y, subject);
       const left = done ? 0 : yearUnmarked(y, subject);
-      st.textContent = done ? '✓' : left ? `${left} 题` : '待确认';
+      st.textContent = done ? '✓' : `${left} 题`;
       b.classList.toggle('is-done', done);
       b.title = done
-        ? `${y} 年${SUBJ[subject]} · 已做完（下面那一行可以取消勾选）`
-        : left
-          ? `${y} 年${SUBJ[subject]} · 还差 ${left} 题`
-          : `${y} 年${SUBJ[subject]} · 题目都记过分了，还没勾「已做完」`;
+        ? `${y} 年${SUBJ[subject]} · 已做完`
+        : `${y} 年${SUBJ[subject]} · 还差 ${left} 题`;
     });
   }
 
@@ -1793,28 +1789,36 @@
     const left = live.filter(y => !yearDone(y, subject));
     const doneN = live.length - left.length;
     const curDone = yearDone(year, subject);
+    const auto = autoYearDone(year, subject);
     const unmarked = yearUnmarked(year, subject);
 
     const stateText = curDone
       ? `${year}<span class="yp-subj"> · ${SUBJ[subject]}</span> 已做完`
-      : `${year}<span class="yp-subj"> · ${SUBJ[subject]}</span> 还没做完${unmarked ? ` · 还差 ${unmarked} 题` : ''}`;
+      : `${year}<span class="yp-subj"> · ${SUBJ[subject]}</span> 还没做完 · 还差 ${unmarked} 题`;
     const sum = !doneN
       ? `0/${live.length} 年 · 还没开始`
       : left.length
         ? `完成 ${doneN}/${live.length} 年 · 剩 ${yearRangeText(left)}`
         : `完成 ${doneN}/${live.length} 年 · 全部做完`;
+    const markTitle = auto
+      ? '这一卷的题都记过分了，已自动打勾'
+      : curDone
+        ? '手动补勾的「已做完」，可以取消'
+        : '题都记过分后会自动勾上；在纸上做过、这页没记分的可以手动补勾';
 
     box.classList.toggle('is-done', curDone);
     box.innerHTML =
-      `<label class="yp-mark" title="题目全部记过分后会自动勾上；也可以自己手动勾选">` +
-        `<input type="checkbox" data-year-done${curDone ? ' checked' : ''} aria-label="把 ${year} 年${SUBJ[subject]}标记为已做完">` +
+      `<label class="yp-mark${auto ? ' is-auto' : ''}" title="${markTitle}">` +
+        `<input type="checkbox" data-year-done${curDone ? ' checked' : ''}${auto ? ' disabled' : ''} aria-label="把 ${year} 年${SUBJ[subject]}标记为已做完">` +
         `<span class="yp-state">${stateText}</span>` +
       `</label>` +
       `<span class="yp-sum"><span class="yp-sep" aria-hidden="true">｜</span>${sum}</span>`;
   }
 
   function setYearDone(year, subject, done) {
-    YEAR_DONE[paperKey(year, subject)] = !!done;
+    const key = paperKey(year, subject);
+    // 取消勾选只撤销「手动补勾」；题目都记过分的年份仍然算做完
+    if (done) YEAR_DONE[key] = true; else delete YEAR_DONE[key];
     saveYearDone();
     renderYearProgress();
   }
