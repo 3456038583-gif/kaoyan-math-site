@@ -1572,6 +1572,22 @@ body.tzoom-open { overflow: hidden; }
   .scorefloat.is-collapsed .sf-top b { font-size: 15px; }
 }
 
+/* 重点题 / 补充真题页的得分卡：同一张卡，但按「本页列出的题」汇总（题目来自多份卷子） */
+.pagefloat { min-width: 196px; }
+.pagefloat .sf-line span { min-width: 28px; }
+.pagefloat .sf-line.sf-sc > b { min-width: 24px; }
+.pagefloat .sf-miss a { cursor: pointer; }
+/* 这两页的题头比真题页多一个「同题」标签，挤到换行时把得分框/对错按钮推到右边缘，
+   免得孤零零挂在题号下面 */
+html[data-view="key"] .qscore,
+html[data-view="key"] .qjudge,
+html[data-view="supp"] .qscore,
+html[data-view="supp"] .qjudge { margin-left: auto; }
+@media (max-width: 640px) {
+  .pagefloat { min-width: 168px; max-width: 210px; }
+  .pagefloat .sf-line span { min-width: 26px; }
+}
+
 .qtext { font-size: 14.5px; line-height: 1.9; overflow-x: auto; overflow-y: hidden; padding: 2px 0 4px; }
 .qtext .katex-display { margin: .35em 0; }
 /* 试卷原样的表格（如二维离散型随机变量的联合分布表）：上下粗线 + 表头细线 + 首列竖线 + 左上角斜线 */

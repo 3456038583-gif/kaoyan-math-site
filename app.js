@@ -956,6 +956,7 @@
     floatResizeTimer = setTimeout(() => {
       const box = appEl.querySelector('[data-scorefloat]');
       if (box) updateFloatScore(Number(box.dataset.year), Number(box.dataset.subject));
+      refreshPageFloat();
     }, 220);
   });
 
@@ -1186,12 +1187,13 @@
   const floatTitle = folded => folded ? '点一下展开本卷得分卡' : '点击空白处回到「我的成绩」';
   function toggleFloatFold(box) {
     const fold = !box.classList.contains('is-collapsed');
+    const isPage = box.hasAttribute('data-pagefloat');
     box.classList.toggle('is-collapsed', fold);
     setFloatFolded(fold);
-    box.setAttribute('title', floatTitle(fold));
+    box.setAttribute('title', isPage ? pageFloatTitle(fold) : floatTitle(fold));
     const btn = box.querySelector('[data-sf-toggle]');
     if (btn) {
-      const label = fold ? '展开本卷得分卡' : '收起本卷得分卡';
+      const label = (fold ? '展开' : '收起') + (isPage ? '本页' : '本卷') + '得分卡';
       btn.setAttribute('aria-expanded', String(!fold));
       btn.setAttribute('aria-label', label);
       btn.setAttribute('title', label);
@@ -1210,6 +1212,96 @@
     box.classList.toggle('has-score', score.hasAny);
     box.classList.toggle('is-collapsed', floatFolded());   // 转屏 / 改窗口宽度时跟着默认值走
     box.setAttribute('title', floatTitle(floatFolded()));
+  }
+
+  /* ── 重点题 / 补充真题页的得分卡 ──
+     这两页的题来自不同年份的不同卷子（同一道题还常在数一/数二/数三里重复出现），
+     所以不按「某一卷」汇总，而是按当前页面列出的题目汇总。
+     分数仍然写回原卷的那一题：与真题页共用同一条记录，同题还会自动同步，
+     这里只是多一个入口，不进右上角「成绩统计」另算一份。 */
+  let PAGE_ITEMS = [];   // 当前页面列出的题目：[[subject, n], ...]
+  // 同一道题在两份卷子里都列出来时只算一次（题干相同视为同题）
+  function uniqueItems(year, raw) {
+    const seen = new Set();
+    const out = [];
+    for (const [s, n] of raw) {
+      const q = getQ(year, s, n);
+      const k = q ? String(q.x).trim() : `${s}-${n}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push([s, n]);
+    }
+    return out;
+  }
+  function pageScoreStats(year, items) {
+    const mk = () => ({ score: 0, max: 0, count: 0, set: 0 });
+    const subs = { 1: mk(), 2: mk(), 3: mk() };
+    const sel = mk();
+    const big = mk();
+    const miss = [];
+    for (const [subject, n] of items) {
+      const max = qMax(year, n);
+      const isBig = qKind(year, n) === 'big';
+      const rec = scoreRec(year, subject);
+      const raw = rec ? (isBig ? rec.big[n] : rec.sel[n]) : undefined;
+      const got = raw === undefined ? 0 : isBig ? Math.min(max, Math.max(0, raw)) : (raw ? max : 0);
+      for (const b of [subs[subject], isBig ? big : sel]) {
+        b.max += max;
+        b.score += got;
+        b.count++;
+        if (raw !== undefined) b.set++;
+      }
+      if (raw === undefined) miss.push([subject, n]);
+    }
+    const total = {
+      score: sel.score + big.score,
+      max: sel.max + big.max,
+      count: sel.count + big.count,
+      set: sel.set + big.set
+    };
+    const subCount = [1, 2, 3].filter(s => subs[s].count).length;
+    return { subs, sel, big, total, miss, subCount };
+  }
+  function pageFloatBodyHTML(year) {
+    const st = pageScoreStats(year, PAGE_ITEMS);
+    // 一页里混着多份卷子时，未完成的题号要带科目，否则「3」看不出是哪一卷的
+    const multi = st.subCount > 1;
+    const limit = window.innerWidth <= 640 ? (multi ? 4 : 6) : (multi ? 6 : 10);
+    const shown = st.miss.slice(0, limit);
+    const pct = st.total.max ? Math.min(100, st.total.score / st.total.max * 100) : 0;
+    const row = (label, c) => `<div class="sf-line sf-sc"><span>${label}</span><b>${fmtScore(c.score)}</b><i>/ ${c.max}</i></div>`;
+    const chip = ([s, n]) => {
+      const no = String(n).padStart(2, '0');
+      return `<a data-page-jump="${s},${n}" title="跳到 ${shortSubj(s)}第 ${n} 题">${multi ? shortSubj(s) + no : no}</a>`;
+    };
+    return `<div class="sf-top"><span>本页得分</span><b>${fmtScore(st.total.score)}</b><i>/ ${st.total.max}</i></div>` +
+      [1, 2, 3].filter(s => st.subs[s].count).map(s => row(shortSubj(s), st.subs[s])).join('') +
+      row('选填', st.sel) +
+      row('大题', st.big) +
+      `<div class="sf-done"><span>已完成</span><b>${st.total.set}</b><i>/ ${st.total.count} 题</i>${st.miss.length ? '' : '<em class="sf-tick">✓</em>'}</div>` +
+      (st.miss.length
+        ? `<div class="sf-miss"><span class="sf-mlabel">未完成</span>${shown.map(chip).join('')}${st.miss.length > limit ? `<em class="sf-more">+${st.miss.length - limit}</em>` : ''}</div>`
+        : '') +
+      `<div class="sf-bar"><i style="width:${pct.toFixed(1)}%"></i></div>`;
+  }
+  const pageFloatTitle = folded => folded
+    ? '点一下展开本页得分卡'
+    : '本页得分 · 与真题原卷的那一题共用同一条记录';
+  function pageFloatHTML(year) {
+    const folded = floatFolded();
+    const st = pageScoreStats(year, PAGE_ITEMS);
+    return `<aside class="scorefloat pagefloat${st.total.set ? ' has-score' : ''}${folded ? ' is-collapsed' : ''}" data-pagefloat data-page-year="${year}" title="${pageFloatTitle(folded)}">${floatToggleHTML()}${pageFloatBodyHTML(year)}</aside>`;
+  }
+  // 记分后重画：只换卡片内部，不动页面上的输入框，避免打断正在输入的那一格
+  function refreshPageFloat() {
+    const box = appEl.querySelector('[data-pagefloat]');
+    if (!box) return;
+    const year = Number(box.dataset.pageYear);
+    const st = pageScoreStats(year, PAGE_ITEMS);
+    box.innerHTML = floatToggleHTML() + pageFloatBodyHTML(year);
+    box.classList.toggle('has-score', st.total.set > 0);
+    box.classList.toggle('is-collapsed', floatFolded());
+    box.setAttribute('title', pageFloatTitle(floatFolded()));
   }
 
   /* 分数有两个入口：顶部成绩面板与题目卡片。任改一处都要同步到另一处 */
@@ -1635,9 +1727,17 @@
         <button class="minilink" type="button" data-pdf="${opts.pdf.sol}" data-pdf-title="${opts.pdf.solTitle}">${opts.pdf.solLabel || '做题本解析'}</button>`
       : `<button class="minilink" type="button" data-pdf="${paperPath(year, subject, 'paper')}" data-pdf-title="${year} 年${SUBJ[subject]}试卷">试卷 PDF</button>
         <button class="minilink" type="button" data-pdf="${paperPath(year, subject, 'sol')}" data-pdf-title="${year} 年${SUBJ[subject]}解析">解析 PDF</button>`;
-    const originBtn = opts.origin
-      ? `<button class="minilink" type="button" data-jump="${year},${subject},${q.n}">原卷定位</button>`
-      : '';
+    // 原卷定位：可以只给一处，也可以给一串（重点题里同一道题常出现在数一/数二/数三里），
+    // 每处一个按钮，点了直接跳到那道题在原卷的位置
+    const originList = Array.isArray(opts.origin)
+      ? opts.origin
+      : (opts.origin ? [[subject, q.n]] : []);
+    const originBtn = originList.map(([s, n]) => {
+      const label = originList.length > 1
+        ? `原卷定位 · ${shortSubj(s)} ${String(n).padStart(2, '0')}`
+        : '原卷定位';
+      return `<button class="minilink jump" type="button" data-jump="${year},${s},${n}" title="跳到 ${year} 年${SUBJ[s]}第 ${n} 题">${label}</button>`;
+    }).join('');
     // 同一道题在同年多个卷子里出现时，在题号旁标出各卷的题号（如 数一3、数二2、数三4）
     const seenSame = new Set();
     const sameList = [[subject, q.n], ...otherSameQuestions(year, subject, q).map(o => [o.subject, o.q.n])]
@@ -1662,7 +1762,7 @@
         ${key && !opts.inKey ? '<span class="chip key-tag">重点</span>' : ''}
         <span class="qmeta">考点：<b>${safe(q.t)}</b></span>
         ${stars(q.st)}
-        ${opts.score && qKind(year, q.n) === 'big' ? timerHTML(`${paperKey(year, subject)}|${q.n}`, `第 ${q.n} 题计时${sameQuestionHint(year, subject, q).replace(/（[^）]*）/g, '')}`) : ''}
+        ${opts.score && !opts.noTimer && qKind(year, q.n) === 'big' ? timerHTML(`${paperKey(year, subject)}|${q.n}`, `第 ${q.n} 题计时${sameQuestionHint(year, subject, q).replace(/（[^）]*）/g, '')}`) : ''}
         ${scoreBoxHTML(year, subject, q, opts)}
       </div>
       <div class="qtext">${safe(q.x)}</div>
@@ -1964,10 +2064,19 @@
     });
     const rawTotal = groups.reduce((s, g) => s + g.items.length, 0);
     const total = firstSeen.size;
+    // 本页列出的题目（去重后的卡片），右下角得分卡按这一份汇总
+    PAGE_ITEMS = uniqueItems(year, layout.flatMap(({ cards }) => cards.map(c => [c.subject, c.n])));
 
     const body = layout.map(({ g, gi, cards, refs }) => {
       const cardHTML = cards
-        .map(c => renderCard(c.q, c.subject, year, { showSubject: true, inKey: true, alsoIn: c.papers }))
+        .map(c => renderCard(c.q, c.subject, year, {
+          showSubject: true,
+          inKey: true,
+          alsoIn: c.papers,
+          score: true,
+          noTimer: true,     // 这里只记分，不计时（计时器属于原卷那一题）
+          origin: c.papers
+        }))
         .join('');
       const refHTML = refs.map(r =>
         `<p class="dupref">同题已在第 ${String(r.index + 1).padStart(2, '0')} 组「${safe(r.topic)}」列出</p>`).join('');
@@ -1993,7 +2102,8 @@
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 1.5h5l3 3v10H4z"/><path d="M9 1.5v3h3"/><path d="M6 9h4M6 11.5h4"/></svg>重点题 PDF</button>
         </div>
       </header>
-      <section class="section">${body || '<div class="card empty">该年份重点题整理中</div>'}</section>`;
+      <section class="section">${body || '<div class="card empty">该年份重点题整理中</div>'}</section>
+      ${pageFloatHTML(year)}`;
   }
 
   /* ── 数一补充真题 ── */
@@ -2032,9 +2142,11 @@
           <h3>${g.title} · 逐题</h3>
           <span>${qs.length} 题 · 题号对应 ${year} 年${SUBJ[g.from]}试卷</span>
         </div>
-        ${qs.map(q => renderCard(q, g.from, year, { showSubject: true, origin: true, pdf: suppPdf })).join('')}
+        ${qs.map(q => renderCard(q, g.from, year, { showSubject: true, origin: true, pdf: suppPdf, score: true, noTimer: true })).join('')}
       </section>`;
     }).join('');
+    // 本页列出的题目，右下角得分卡按这一份汇总
+    PAGE_ITEMS = uniqueItems(year, groups.flatMap(g => g.nums.map(n => [g.from, n])));
 
     return `<header class="yearhero">
         <div>
@@ -2051,6 +2163,7 @@
       <div class="card supp-intro">
         <p><b>怎么用：</b>数一考生在刷完数一真题后，可把数二、数三中符合数一大纲的题目当作额外练习。这里按年份把补充题对照回原卷题号，并逐题列出题干、答案与解析。</p>
         <p>点击对照表中的题号，可直接定位到下方对应题目；每题右下角的「原卷定位」会跳回该题在数二／数三真题页的位置。</p>
+        <p>每题上限的「✓ / ✗」与解答题的「得分」直接记在原卷那一题上：和在真题页记分是同一份数据，同题还会自动同步。</p>
       </div>
       <section class="section">
         <div class="sec-head"><h2>${year} 年补充题对照</h2><span class="hint">按来源分列 · 点击定位</span></div>
@@ -2060,7 +2173,8 @@
       <section class="section">
         <div class="sec-head"><h2>补充真题 · 逐题精析</h2><span class="hint">点击「答案 · 解析」展开</span></div>
         ${detail || '<div class="card empty">该年份补充真题整理中</div>'}
-      </section>`;
+      </section>
+      ${pageFloatHTML(year)}`;
   }
 
   /* ── 错题本 ── */
@@ -2994,7 +3108,7 @@
 
     const sfToggle = e.target.closest('[data-sf-toggle]');
     if (sfToggle) {
-      const fb = sfToggle.closest('[data-scorefloat]');
+      const fb = sfToggle.closest('[data-scorefloat], [data-pagefloat]');
       if (fb) toggleFloatFold(fb);
       return;
     }
@@ -3003,6 +3117,27 @@
     if (panelToggle) {
       const card = panelToggle.closest('[data-scorecard], [data-mockcard]');
       if (card) togglePanelFold(card);
+      return;
+    }
+
+    // 未完成的题号：跳到本页里那道题（先于整块点击处理，否则会被卡片吞掉）
+    const pageJump = e.target.closest('[data-page-jump]');
+    if (pageJump) {
+      const box = pageJump.closest('[data-pagefloat]');
+      const [s, n] = pageJump.dataset.pageJump.split(',').map(Number);
+      const el = box && document.getElementById(`q-${box.dataset.pageYear}-${s}-${n}`);
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.classList.add('flash');
+        setTimeout(() => el.classList.remove('flash'), 1600);
+      }
+      return;
+    }
+
+    // 重点题 / 补充真题页的得分卡：只在收起时点开，没有「我的成绩」面板可跳
+    const pageBox = e.target.closest('[data-pagefloat]');
+    if (pageBox) {
+      if (pageBox.classList.contains('is-collapsed')) toggleFloatFold(pageBox);
       return;
     }
 
@@ -3031,6 +3166,7 @@
       pruneScoreRec(year, subject);
       saveScores();
       syncSelState(year, subject, n, rec.sel[n]);
+      refreshPageFloat();
       const card = appEl.querySelector('[data-scorecard]');
       if (synced && card) setScoreStatus(card, `第 ${n} 题已自动同步到 ${synced} 道同题。`);
       return;
@@ -3337,6 +3473,7 @@
     pruneScoreRec(year, subject);
     saveScores();
     mirrorCardScore(year, subject, n, rec.big[n], inp);
+    refreshPageFloat();
     const card = appEl.querySelector('[data-scorecard]');
     if (synced && card) setScoreStatus(card, `第 ${n} 题已自动同步到 ${synced} 道同题。`);
   });
