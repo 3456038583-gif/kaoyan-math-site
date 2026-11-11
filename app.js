@@ -1212,6 +1212,7 @@
     box.classList.toggle('has-score', score.hasAny);
     box.classList.toggle('is-collapsed', floatFolded());   // 转屏 / 改窗口宽度时跟着默认值走
     box.setAttribute('title', floatTitle(floatFolded()));
+    paintYearMarks();   // 这一卷刚记完最后一题的话，年份按钮立刻打勾
   }
 
   /* ── 重点题 / 补充真题页的得分卡 ──
@@ -1232,6 +1233,39 @@
       out.push([s, n]);
     }
     return out;
+  }
+  /* 某一年的重点题 / 补充真题会列出哪些题（与渲染时的去重口径一致）。
+     年份条上的完成标记要按「这一页列出的题」算，所以单独抽出来，
+     不依赖当前正在看的是哪一年。 */
+  function keyPageItems(year) {
+    const seen = new Set();
+    const out = [];
+    for (const g of (KEY_GROUPS[year] || [])) {
+      for (const [subject, n] of g.items) {
+        const q = getQ(year, subject, n);
+        if (!q) continue;
+        const stem = String(q.x).trim();
+        if (seen.has(stem)) continue;
+        seen.add(stem);
+        out.push([subject, n]);
+      }
+    }
+    return out;
+  }
+  function suppPageItems(year) {
+    const groups = SUPP[year] || [];
+    return uniqueItems(year, groups.flatMap(g => g.nums.map(n => [g.from, n])));
+  }
+  /* 年份条要显示 17 年的完成情况，而题库是按年懒加载的，
+     所以别的年份用 keymap.js 里的静态清单（build-tools/gen-keymap.mjs 生成），
+     当前这一年直接用渲染时算出的 PAGE_ITEMS，跟屏幕上的卡片一一对应。 */
+  function pageItemsOf(year, view) {
+    if (year === state.year && PAGE_ITEMS.length) return PAGE_ITEMS;
+    const map = view === 'supp'
+      ? (typeof SUPP_ITEMS !== 'undefined' ? SUPP_ITEMS : null)
+      : (typeof KEY_ITEMS !== 'undefined' ? KEY_ITEMS : null);
+    if (map && map[year] && map[year].length) return map[year];
+    return view === 'supp' ? suppPageItems(year) : keyPageItems(year);
   }
   function pageScoreStats(year, items) {
     const mk = () => ({ score: 0, max: 0, count: 0, set: 0 });
@@ -1302,6 +1336,7 @@
     box.classList.toggle('has-score', st.total.set > 0);
     box.classList.toggle('is-collapsed', floatFolded());
     box.setAttribute('title', pageFloatTitle(floatFolded()));
+    paintYearMarks();   // 本页记得的分数会影响本年份「还差几题」，同步刷新年份按钮
   }
 
   /* 分数有两个入口：顶部成绩面板与题目卡片。任改一处都要同步到另一处 */
@@ -1836,21 +1871,46 @@
     return out.join('、');
   };
 
-  /* 年份按钮上的完成态：题都记过分直接打勾，没做完就写还差几题 */
+  /* 年份按钮上的完成态：题都记过分直接打勾，没做完就写还差几题
+     重点题 / 补充真题没有「某一卷」的概念，按那一年这一页列出的题来算 */
   function paintYearMarks() {
     const subject = SUBJ_VIEW[state.view];
+    const pageMode = state.view === 'key' || state.view === 'supp';
+    const pageLabel = state.view === 'supp' ? '补充真题' : '重点题';
     yearsEl.querySelectorAll('.year').forEach(b => {
       const st = b.querySelector('.y-st');
       if (!st) return;
-      if (!subject) { st.textContent = ''; b.removeAttribute('title'); return; }
       const y = Number(b.dataset.year);
-      const done = yearDone(y, subject);
-      const left = done ? 0 : yearUnmarked(y, subject);
+      let done = false;
+      let left = 0;
+      let label = '';
+      if (subject) {
+        done = yearDone(y, subject);
+        left = done ? 0 : yearUnmarked(y, subject);
+        label = SUBJ[subject];
+      } else if (pageMode) {
+        const items = pageItemsOf(y, state.view);
+        if (!items.length) {   // 这一年还没有重点题 / 补充真题，不写标记
+          st.textContent = '';
+          b.classList.remove('is-done');
+          b.removeAttribute('title');
+          return;
+        }
+        const pst = pageScoreStats(y, items);
+        left = pst.total.count - pst.total.set;
+        done = left <= 0;
+        label = pageLabel;
+      } else {
+        st.textContent = '';
+        b.classList.remove('is-done');
+        b.removeAttribute('title');
+        return;
+      }
       st.textContent = done ? '✓' : `${left} 题`;
       b.classList.toggle('is-done', done);
       b.title = done
-        ? `${y} 年${SUBJ[subject]} · 已做完`
-        : `${y} 年${SUBJ[subject]} · 还差 ${left} 题`;
+        ? `${y} 年${label} · 已做完`
+        : `${y} 年${label} · 还差 ${left} 题`;
     });
   }
 
@@ -2064,8 +2124,8 @@
     });
     const rawTotal = groups.reduce((s, g) => s + g.items.length, 0);
     const total = firstSeen.size;
-    // 本页列出的题目（去重后的卡片），右下角得分卡按这一份汇总
-    PAGE_ITEMS = uniqueItems(year, layout.flatMap(({ cards }) => cards.map(c => [c.subject, c.n])));
+    // 本页列出的题目（去重后的卡片），右下角得分卡和年份条上的完成标记都按这一份算
+    PAGE_ITEMS = keyPageItems(year);
 
     const body = layout.map(({ g, gi, cards, refs }) => {
       const cardHTML = cards
@@ -2145,8 +2205,8 @@
         ${qs.map(q => renderCard(q, g.from, year, { showSubject: true, origin: true, pdf: suppPdf, score: true, noTimer: true })).join('')}
       </section>`;
     }).join('');
-    // 本页列出的题目，右下角得分卡按这一份汇总
-    PAGE_ITEMS = uniqueItems(year, groups.flatMap(g => g.nums.map(n => [g.from, n])));
+    // 本页列出的题目，右下角得分卡和年份条上的完成标记都按这一份算
+    PAGE_ITEMS = suppPageItems(year);
 
     return `<header class="yearhero">
         <div>
