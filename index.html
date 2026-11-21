@@ -9,7 +9,7 @@
 <!-- 中文字体体积大、国内访问慢：改成非阻塞加载，先用系统字体渲染，字体到了再换 -->
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
 <style>
 /* 版式：试卷/答案页。五个板块切换时整页强调色随之改变。 */
 :root {
@@ -1685,6 +1685,11 @@ html[data-view="supp"] .qjudge { margin-left: auto; }
 }
 .ansbtn:hover { border-color: var(--accent); color: var(--accent); }
 .ansbtn[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+/* 单题复制 / 复制题图：复制成功后短暂转成绿色提示 */
+.ansbtn.qcopy, .ansbtn.qcopyfig { font-size: 11px; padding: 4px 9px; }
+.ansbtn.done,
+.ansbtn.done:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.ansbtn:disabled { opacity: .6; cursor: default; }
 .minilink {
   border: 0;
   background: transparent;
@@ -2169,6 +2174,6 @@ html[data-loading="true"] #app::after {
 <script src="data.js"></script>
 <!-- 各年份重点题/补充真题的题目清单：年份条要显示全部 17 年的完成情况，不必为此载入 17 年题库 -->
 <script src="keymap.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=20261121a"></script>
 </body>
 </html>

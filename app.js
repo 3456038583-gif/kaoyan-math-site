@@ -1747,12 +1747,111 @@
     return { card, mock: MOCKS.find(m => m.id === card.dataset.mockId) || null };
   };
 
+  /* ── 单题复制：题目源码本来就是 LaTeX，直接还原成纯文本，公式一个字符都不丢 ── */
+  const absURL = p => new URL(String(p).trim().replace(/^\/+/, ''), location.origin + '/').href;
+
+  // <tbl>X|0|1;P|1/3|2/3</tbl> → Markdown 表格（首格可能是 "X\Y" 的斜线表头）
+  const copyTable = body => {
+    const rows = String(body).replace(/\\\|/g, '｜').split(';')
+      .map(r => r.split('|').map(c => c.trim()))
+      .filter(r => r.some(Boolean));
+    if (!rows.length) return '';
+    const w = Math.max(...rows.map(r => r.length));
+    const line = r => '| ' + Array.from({ length: w }, (_, i) => (r[i] || '').replace(/\|/g, '｜')).join(' | ') + ' |';
+    return '\n\n' + line(rows[0]) + '\n|' + ' --- |'.repeat(w) + '\n'
+      + rows.slice(1).map(line).join('\n') + '\n';
+  };
+
+  // 题面里的排版标签转成纯文本：题图留绝对链接，表格转 Markdown，<br> 转换行。
+  // 只认已知标签——题面里 $|x|<1$ 这类裸尖括号很多，泛泛地「去标签」会把公式吃掉。
+  const copyMd = s => String(s == null ? '' : s)
+    .replace(/<fig>\s*([^<]+?)\s*<\/fig>/gi, (_, p) => `\n\n题图：${absURL(p)}\n`)
+    .replace(/<tbl>([\s\S]*?)<\/tbl>/gi, (_, body) => copyTable(body))
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(?:b|strong)>/gi, '**')
+    .replace(/<\/?(?:i|em)>/gi, '*')
+    .replace(/<\/?(?:p|span|sub|sup|u|small)>/gi, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  const figOf = q => {
+    const m = String(q.x || '').match(/<fig>\s*([^<]+?)\s*<\/fig>/i);
+    return m ? absURL(m[1]) : '';
+  };
+
+  function qCopyText(year, subject, q, withAns) {
+    const tag = [q.m, q.t].filter(Boolean).join(' · ');
+    const out = [`${paperTitle(year, subject)} · 第 ${q.n} 题${tag ? ` · ${tag}` : ''}`, '', copyMd(q.x)];
+    if (q.o && q.o.length) {
+      out.push('');
+      q.o.forEach((t, i) => out.push(`${'ABCD'[i]}. ${copyMd(t)}`));
+    }
+    if (withAns && String(q.a || '').trim()) out.push('', `【答案】${copyMd(q.a)}`);
+    if (withAns && String(q.sol || '').trim()) out.push('', `【解析】${copyMd(q.sol)}`);
+    return out.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+  }
+
+  async function copyPlain(text) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (err) { /* 权限被拒时走下面的兜底 */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  // 题图直接拿原图（本身就是试卷截图），比截卡片清楚得多，也不用引入截图库
+  async function copyFig(url) {
+    if (!navigator.clipboard || !window.ClipboardItem) return 'open';
+    try {
+      const blob = await (await fetch(url)).blob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type || 'image/png']: blob })]);
+      return 'ok';
+    } catch (err) {
+      // Safari 要求在用户手势里同步构造 ClipboardItem，给它传 Promise 再试一次
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': fetch(url).then(r => r.blob()) })]);
+        return 'ok';
+      } catch (err2) {
+        return 'open';
+      }
+    }
+  }
+
+  const flashBtn = (btn, text, keep) => {
+    if (!btn) return;
+    if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+    btn.textContent = text;
+    btn.classList.toggle('done', keep !== false);
+    clearTimeout(btn._ft);
+    btn._ft = setTimeout(() => {
+      btn.textContent = btn.dataset.label;
+      btn.classList.remove('done');
+    }, 1800);
+  };
+
   /* ── 题目卡 ── */
   function renderCard(q, subject, year, opts) {
     opts = opts || {};
     const lv = levelOf(year, subject, q.n);
     const key = isKeyQ(year, subject, q.n);
     const marked = WRONG.has(wrongKey(year, subject, q.n));
+    const figSrc = figOf(q);
     const options = q.o
       ? `<div class="opts">${q.o.map((t, i) =>
           `<div class="opt${bigOpt(t) ? ' big' : ''}"><span class="ol">${'ABCD'[i]}</span><span>${safe(t)}</span></div>`).join('')}</div>`
@@ -1804,6 +1903,8 @@
       ${options}
       <div class="qfoot">
         <button class="ansbtn" type="button" aria-expanded="false">答案 · 解析</button>
+        <button class="ansbtn qcopy" type="button" data-copyq="${year},${subject},${q.n}" title="复制本题题干与选项：公式保留 LaTeX，可直接贴给 AI 讲解；答案展开时一并复制答案与解析">复制</button>
+        ${figSrc ? `<button class="ansbtn qcopyfig" type="button" data-fig="${attr(figSrc)}" title="把本题的题图原图复制到剪贴板">复制题图</button>` : ''}
         <button class="minilink wrongbtn" type="button" data-wrong="${year}-${subject}-${q.n}" aria-pressed="${marked}">${marked ? '已加入错题本' : '加入错题本'}</button>
         ${pdfBtns}
         ${originBtn}
@@ -2971,6 +3072,34 @@
 
   /* ── 事件 ── */
   appEl.addEventListener('click', e => {
+    const copyQ = e.target.closest('[data-copyq]');
+    if (copyQ) {
+      const [year, subject, n] = copyQ.dataset.copyq.split(',').map(Number);
+      const q = getQ(year, subject, n);
+      if (!q) return;
+      const card = copyQ.closest('.qcard');
+      const box = card && card.querySelector('.ansbox');
+      copyPlain(qCopyText(year, subject, q, !!(box && !box.hidden))).then(ok => {
+        flashBtn(copyQ, ok ? '已复制 ✓' : '复制失败', ok);
+      });
+      return;
+    }
+    const copyFigBtn = e.target.closest('[data-fig]');
+    if (copyFigBtn) {
+      const url = copyFigBtn.dataset.fig;
+      copyFigBtn.disabled = true;
+      copyFig(url).then(res => {
+        copyFigBtn.disabled = false;
+        if (res === 'ok') { flashBtn(copyFigBtn, '已复制 ✓', true); return; }
+        if (res === 'open') {
+          window.open(url, '_blank', 'noopener');
+          flashBtn(copyFigBtn, '已打开原图', false);
+          return;
+        }
+        flashBtn(copyFigBtn, '复制失败', false);
+      });
+      return;
+    }
     const syncBridge = e.target.closest('[data-sync-bridge]');
     if (syncBridge) {
       const ep = syncEndpoint();
