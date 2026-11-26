@@ -3,6 +3,12 @@
    6 套主题：classic(经典纸感) | glass(液态玻璃) | glass-dark(暗夜玻璃)
              dark(静谧深色) | sage(护眼青笺) | eink(水墨宣纸)
    ========================================================================== */
+@view-transition { navigation: auto; }
+:root[data-style="dark"] { background-color: #121614; }
+:root[data-style="sage"] { background-color: #e6efe8; }
+:root[data-style="eink"] { background-color: #ffffff; }
+:root[data-style="glass"] { background-color: #edf3fb; }
+:root[data-style="glass-dark"] { background-color: #090e1a; }
 
 /* ── 1. 字号缩放（阅读舒适度） ──────────────────────────────────────────── */
 :root[data-fontsize="lg"] body { font-size: 16.5px; }
