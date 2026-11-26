@@ -1645,6 +1645,51 @@
     return `${header}${builtinMocksHTML(subject)}${mockFormHTML(subject)}<div data-mock-stats>${mockStatsBlockHTML(rows, subject)}</div>${detail}`;
   }
 
+  /* ── 单题个人笔记 & 考场防剧透模式 ── */
+  const NOTE_KEY = 'kaoyanMath.notes.v1';
+  const NOTES = (() => {
+    try { const d = JSON.parse(localStorage.getItem(NOTE_KEY) || '{}'); return d && typeof d === 'object' ? d : {}; }
+    catch (e) { return {}; }
+  })();
+  function saveNotes() {
+    try { localStorage.setItem(NOTE_KEY, JSON.stringify(NOTES)); } catch (e) {}
+  }
+  const EXAM_MODE_KEY = 'kaoyanMath.examMode.v1';
+  function isExamMode() {
+    try { return localStorage.getItem(EXAM_MODE_KEY) === '1'; } catch (e) { return false; }
+  }
+  function setExamMode(on) {
+    document.documentElement.toggleAttribute('data-exam-mode', !!on);
+    if (on) document.documentElement.setAttribute('data-exam-mode', '1');
+    else document.documentElement.removeAttribute('data-exam-mode');
+    try { localStorage.setItem(EXAM_MODE_KEY, on ? '1' : '0'); } catch (e) {}
+    document.querySelectorAll('[data-exam-toggle]').forEach(b => {
+      b.classList.toggle('on', !!on);
+      b.setAttribute('aria-pressed', String(!!on));
+    });
+  }
+  if (isExamMode()) document.documentElement.setAttribute('data-exam-mode', '1');
+
+  function paperToolsHTML() {
+    const em = isExamMode();
+    return `<div class="paper-tools">`
+      + `<button class="pt-btn${em ? ' on' : ''}" type="button" data-exam-toggle aria-pressed="${em}" title="隐藏考点、难度与重点标签，模拟真实考场 (快捷键 E)">🎯 考场防剧透</button>`
+      + `<button class="pt-btn" type="button" data-ans-all="0" title="一键展开或收起本页全部解析">📖 展开全部解析</button>`
+      + `</div>`;
+  }
+
+  function qJumpBarHTML(year, subject, paper) {
+    if (!paper || paper.length < 6) return '';
+    const btns = paper.map(q => {
+      const k = `${year}-${subject}-${q.n}`;
+      const cls = ['qj-btn'];
+      if (WRONG.has(k)) cls.push('is-wrong');
+      if (NOTES[k] && String(NOTES[k]).trim()) cls.push('is-note');
+      return `<button class="${cls.join(' ')}" type="button" data-qjump="q-${k}" title="跳到第 ${q.n} 题">${q.n}</button>`;
+    }).join('');
+    return `<nav class="qjumpbar" aria-label="题号快速定位"><span class="qj-lbl">题号跳转</span>${btns}</nav>`;
+  }
+
   /* ── 成套模拟卷：识别好的整卷，题目用与真题相同的卡片渲染 ── */
   function builtinPapers(subject) {
     if (typeof MOCK_PAPERS === 'undefined') return [];
@@ -1658,22 +1703,25 @@
     const years = builtinPapers(subject);
     if (!years.length) return '';
     const sets = [];
+    const setNames = {};
+    const setCounts = {};
     for (const y of years) {
       const m = MOCK_PAPERS[y];
       if (!sets.includes(m.set)) sets.push(m.set);
+      setNames[m.set] = m.setName || m.set;
+      setCounts[m.set] = (setCounts[m.set] || 0) + 1;
     }
     const cards = years.map(y => {
       const m = MOCK_PAPERS[y];
       const paper = PAPERS[paperKey(y, m.subject)] || [];
       if (!paper.length) return '';
       const c = computePaperScore(y, m.subject);
-      const started = c.total.set > 0;
       const rec = scoreRec(y, m.subject);
       const answered = rec ? Object.keys(rec.sel).length + Object.keys(rec.big).length : 0;
       const status = !answered
         ? '<span class="mp-stat">未开始</span>'
         : `<span class="mp-stat is-on">已做 ${answered} 题 · <b>${fmtScore(c.total.score)}</b> / 150</span>`;
-      return `<button class="mockpcard" type="button" data-open-paper="${y}" data-paper-subj="${m.subject}">
+      return `<button class="mockpcard" type="button" data-open-paper="${y}" data-paper-subj="${m.subject}" data-set="${esc(m.set)}" data-done="${answered > 0 ? '1' : '0'}">
         <span class="mp-set">${esc(m.setName || m.set)}</span>
         <strong class="mp-name">${esc(m.short || m.name)}</strong>
         <span class="mp-meta">${SUBJ[m.subject]} · ${paper.length} 题${m.time ? ` · ${m.time} 分钟` : ''}</span>
@@ -1687,9 +1735,16 @@
     }).filter(v => v !== null);
     const avg = done.length ? done.reduce((a, b) => a + b, 0) / done.length : null;
     const hint = `${years.length} 套 · 题目已识别，可计时、判分、加错题本${avg === null ? '' : ` · 已做 ${done.length} 套，平均 ${fmtScore(avg)} 分`}`;
+    const filterBar = sets.length > 1 ? `<div class="mock-filters" data-mock-filters>`
+      + `<button class="mf-pill on" type="button" data-mf-set="all">全部 (${years.length})</button>`
+      + sets.map(s => `<button class="mf-pill" type="button" data-mf-set="${esc(s)}">${esc(setNames[s])} (${setCounts[s]})</button>`).join('')
+      + `<span class="mf-sep"></span>`
+      + `<button class="mf-pill" type="button" data-mf-todo="0">只看未做</button>`
+      + `</div>` : '';
     return `<section class="section builtinmocks">
       <div class="sec-head"><h2>成套模拟卷</h2><span class="hint">${hint}</span></div>
       <p class="builtin-note">这些卷子的题目按真题样式排好：点进去就是整卷，选填点 ✓/✗、大题填分数，右上角显示实时得分；「答案 · 解析」里是原解析册的内容。</p>
+      ${filterBar}
       <div class="mockpgrid">${cards}</div>
     </section>`;
   }
@@ -1739,7 +1794,8 @@
       </header>
       <section class="section">${scorePanelHTML(year, subject)}</section>
       <section class="section">
-        <div class="sec-head"><h2>逐题精析</h2><span class="hint">点击「答案 · 解析」展开</span></div>
+        <div class="sec-head"><h2>逐题精析</h2>${paperToolsHTML()}</div>
+        ${qJumpBarHTML(year, subject, paper)}
         ${body || '<div class="card empty">这套卷的题目整理中</div>'}
       </section>
       ${scoreFloatHTML(year, subject)}`;
@@ -1915,6 +1971,7 @@
         <button class="ansbtn" type="button" aria-expanded="false">答案 · 解析</button>
         <button class="ansbtn qcopy" type="button" data-copyq="${year},${subject},${q.n}" title="复制本题题干与选项：公式保留 LaTeX，可直接贴给 AI 讲解；答案展开时一并复制答案与解析">复制</button>
         ${figSrc ? `<button class="ansbtn qcopyfig" type="button" data-fig="${attr(figSrc)}" title="把本题的题图原图复制到剪贴板">复制题图</button>` : ''}
+        <button class="ansbtn qnote-btn${NOTES[`${year}-${subject}-${q.n}`] && String(NOTES[`${year}-${subject}-${q.n}`]).trim() ? ' has-note' : ''}" type="button" data-note-key="${year}-${subject}-${q.n}" title="记录本题的易错点、二级结论或思路（自动保存在本地，支持导出备份）">${NOTES[`${year}-${subject}-${q.n}`] && String(NOTES[`${year}-${subject}-${q.n}`]).trim() ? '笔记 ✓' : '笔记'}</button>
         <button class="minilink wrongbtn" type="button" data-wrong="${year}-${subject}-${q.n}" aria-pressed="${marked}">${marked ? '已加入错题本' : '加入错题本'}</button>
         ${pdfBtns}
         ${originBtn}
@@ -1929,6 +1986,10 @@
                 ? '这套卷只收了做题本，没有配套解析，答案请对照试卷 PDF 自行核对。'
                 : '这题暂未取到解析，可对照试卷 PDF 自行核对。';
             })()}</p></div>`}
+      </div>
+      <div class="qnote-box" data-note-box="${year}-${subject}-${q.n}" hidden>
+        <div class="qnote-head"><span>个人笔记（自动保存）</span><span data-note-st></span></div>
+        <textarea class="qnote-ta" data-note-ta="${year}-${subject}-${q.n}" placeholder="写下你的解题思路、易错点或二级结论…">${esc(NOTES[`${year}-${subject}-${q.n}`] || '')}</textarea>
       </div>
     </article>`;
   }
@@ -2199,7 +2260,8 @@
         ${kpCard}
       </section>
       <section class="section">
-        <div class="sec-head"><h2>逐题精析</h2><span class="hint">点击「答案 · 解析」展开</span></div>
+        <div class="sec-head"><h2>逐题精析</h2>${paperToolsHTML()}</div>
+        ${qJumpBarHTML(year, subject, paper)}
         ${filters}
         ${groups || '<div class="card empty">该年份题目整理中</div>'}
         <div class="card empty filter-empty" hidden>没有符合筛选条件的题目</div>
@@ -3196,6 +3258,86 @@
       return;
     }
 
+    // 模拟卷套系筛选与「只看未做」
+    const mfSet = e.target.closest('[data-mf-set]');
+    const mfTodo = e.target.closest('[data-mf-todo]');
+    if (mfSet || mfTodo) {
+      const bar = (mfSet || mfTodo).closest('[data-mock-filters]');
+      const sec = bar && bar.closest('.builtinmocks');
+      if (bar && sec) {
+        if (mfSet) {
+          bar.querySelectorAll('[data-mf-set]').forEach(b => b.classList.toggle('on', b === mfSet));
+        }
+        if (mfTodo) {
+          const nxt = mfTodo.dataset.mfTodo === '1' ? '0' : '1';
+          mfTodo.dataset.mfTodo = nxt;
+          mfTodo.classList.toggle('on', nxt === '1');
+        }
+        const activeSet = (bar.querySelector('[data-mf-set].on') || {}).dataset?.mfSet || 'all';
+        const onlyTodo = (bar.querySelector('[data-mf-todo]') || {}).dataset?.mfTodo === '1';
+        sec.querySelectorAll('.mockpcard').forEach(c => {
+          const okSet = activeSet === 'all' || c.dataset.set === activeSet;
+          const okTodo = !onlyTodo || c.dataset.done !== '1';
+          c.classList.toggle('mf-hide', !(okSet && okTodo));
+        });
+      }
+      return;
+    }
+
+    // 考场防剧透模式
+    if (e.target.closest('[data-exam-toggle]')) {
+      setExamMode(!isExamMode());
+      return;
+    }
+
+    // 一键展开/收起全部解析
+    const ansAll = e.target.closest('[data-ans-all]');
+    if (ansAll) {
+      const open = ansAll.dataset.ansAll !== '1';
+      ansAll.dataset.ansAll = open ? '1' : '0';
+      ansAll.classList.toggle('on', open);
+      ansAll.textContent = open ? '📕 收起全部解析' : '📖 展开全部解析';
+      appEl.querySelectorAll('.qcard').forEach(card => {
+        const box = card.querySelector('.ansbox');
+        const btn = card.querySelector('.qfoot .ansbtn:not(.qcopy):not(.qcopyfig):not(.qnote-btn)');
+        if (box) box.hidden = !open;
+        if (btn) {
+          btn.setAttribute('aria-expanded', String(open));
+          btn.textContent = open ? '收起解析' : '答案 · 解析';
+        }
+      });
+      return;
+    }
+
+    // 题号快速跳转
+    const qj = e.target.closest('[data-qjump]');
+    if (qj) {
+      const el = document.getElementById(qj.dataset.qjump);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        appEl.querySelectorAll('.qcard.kb-focus').forEach(x => x.classList.remove('kb-focus'));
+        el.classList.add('kb-focus');
+        setTimeout(() => el.classList.remove('kb-focus'), 1600);
+      }
+      return;
+    }
+
+    // 单题笔记抽屉开关
+    const noteBtn = e.target.closest('[data-note-key]');
+    if (noteBtn) {
+      const k = noteBtn.dataset.noteKey;
+      const card = noteBtn.closest('.qcard');
+      const box = card && card.querySelector(`[data-note-box="${k}"]`);
+      if (box) {
+        box.hidden = !box.hidden;
+        if (!box.hidden) {
+          const ta = box.querySelector('textarea');
+          if (ta) ta.focus();
+        }
+      }
+      return;
+    }
+
     const mockChip = e.target.closest('[data-mock-sel]');
     if (mockChip) {
       const ctx = mockFromEl(mockChip);
@@ -4089,6 +4231,49 @@
   // 内置模拟卷：?view=mock&paper=3211&subj=2 —— 直接打开某一套
   // 题库是懒加载的，这里只认伪年份区间，具体科目等数据到位后由 renderNow 校正
   const pp = Number(params.get('paper'));
+  /* ── 单题笔记自动保存 + 键盘快捷键 (J/K 切题, E 考场防剧透) ── */
+  appEl.addEventListener('input', e => {
+    const ta = e.target.closest('[data-note-ta]');
+    if (!ta) return;
+    const k = ta.dataset.noteTa;
+    const val = ta.value;
+    if (val.trim()) NOTES[k] = val;
+    else delete NOTES[k];
+    saveNotes();
+    const card = ta.closest('.qcard');
+    const btn = card && card.querySelector(`[data-note-key="${k}"]`);
+    if (btn) {
+      const has = !!val.trim();
+      btn.classList.toggle('has-note', has);
+      btn.textContent = has ? '笔记 ✓' : '笔记';
+    }
+    const st = card && card.querySelector('[data-note-st]');
+    if (st) { st.textContent = '已保存'; setTimeout(() => { if (st.textContent === '已保存') st.textContent = ''; }, 1200); }
+    const qjb = appEl.querySelector(`[data-qjump="q-${k}"]`);
+    if (qjb) qjb.classList.toggle('is-note', !!val.trim());
+  });
+
+  let kbIdx = -1;
+  document.addEventListener('keydown', e => {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'e' && appEl.querySelector('[data-exam-toggle]')) {
+      setExamMode(!isExamMode());
+      return;
+    }
+    if (k === 'j' || k === 'k') {
+      const cards = [...appEl.querySelectorAll('.qcard')].filter(c => c.offsetParent !== null);
+      if (!cards.length) return;
+      e.preventDefault();
+      kbIdx = k === 'j' ? Math.min(cards.length - 1, kbIdx + 1) : Math.max(0, kbIdx - 1);
+      cards.forEach(c => c.classList.remove('kb-focus'));
+      const cur = cards[kbIdx];
+      cur.classList.add('kb-focus');
+      cur.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  });
+
   if (state.view === 'mock' && isMockYear(pp)) state.paper = pp;
   const hash = location.hash.match(/^#q-(\d{4})-(\d)-(\d+)$/);
   renderYears();

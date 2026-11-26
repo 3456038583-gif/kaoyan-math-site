@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
+<link rel="stylesheet" href="theme.css?v=20261127a">
 <style>
 /* 版式：试卷/答案页。五个板块切换时整页强调色随之改变。 */
 :root {
@@ -2084,6 +2085,96 @@ footer .mono { font-family: var(--mono); }
   #printRoot .pq.practice .pblank { flex: 1 1 auto; min-height: 20mm; margin-top: 6pt; border-top: .8pt dashed #dcdcd4; }
   #printRoot .pq.practice .pblank > span { display: block; font-size: 8pt; color: #c2c2ba; letter-spacing: .5pt; }
 }
+/* ── 模拟卷套系筛选栏 ── */
+.mock-filters {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
+  margin: 0 0 14px;
+}
+.mf-pill {
+  padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  font-family: var(--sans); font-size: 12px; cursor: pointer;
+  transition: all .15s;
+}
+.mf-pill:hover { border-color: var(--accent); color: var(--ink); }
+.mf-pill.on {
+  background: var(--accent); border-color: var(--accent);
+  color: var(--accent-ink, #fff); font-weight: 600;
+}
+.mf-sep { width: 1px; height: 16px; background: var(--line); margin: 0 2px; }
+.mockpcard.mf-hide { display: none !important; }
+
+/* ── 试卷快捷工具栏 & 题号快速跳转 ── */
+.paper-tools {
+  display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  margin-left: auto;
+}
+.pt-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  font-family: var(--sans); font-size: 12px; cursor: pointer;
+  transition: all .15s;
+}
+.pt-btn:hover { border-color: var(--accent); color: var(--ink); }
+.pt-btn.on {
+  background: var(--accent); border-color: var(--accent);
+  color: var(--accent-ink, #fff); font-weight: 600;
+}
+.qjumpbar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
+  margin: 0 0 14px; padding: 8px 10px;
+  border-radius: 12px; border: 1px solid var(--line); background: var(--surface);
+}
+.qjumpbar .qj-lbl {
+  font-size: 11.5px; color: var(--muted); margin-right: 4px;
+}
+.qj-btn {
+  min-width: 26px; height: 24px; padding: 0 6px;
+  border-radius: 6px; border: 1px solid var(--line);
+  background: transparent; color: var(--muted);
+  font-family: var(--mono); font-size: 11.5px; cursor: pointer;
+  transition: all .12s;
+}
+.qj-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.qj-btn.is-wrong { border-color: var(--hard); color: var(--hard); }
+.qj-btn.is-note { box-shadow: inset 0 -2px 0 var(--gold); }
+
+/* ── 考场防剧透模式（隐藏考点、难度、重点标签） ── */
+html[data-exam-mode="1"] .qcard .qmeta,
+html[data-exam-mode="1"] .qcard .stars,
+html[data-exam-mode="1"] .qcard .chip:not(.mod-tag),
+html[data-exam-mode="1"] .qcard .same-tag { display: none !important; }
+
+/* ── 单题笔记抽屉 & 键盘焦点 ── */
+.qnote-btn.has-note {
+  border-color: var(--gold) !important;
+  color: var(--gold) !important;
+  font-weight: 600;
+}
+.qnote-box {
+  margin-top: 10px; padding: 10px 12px;
+  border-radius: 10px; border: 1px dashed var(--line-strong);
+  background: var(--surface-2, var(--mask));
+}
+.qnote-box[hidden] { display: none; }
+.qnote-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 6px; font-size: 11.5px; color: var(--muted);
+}
+.qnote-ta {
+  width: 100%; min-height: 68px; resize: vertical;
+  padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  font-family: var(--sans); font-size: 13px; line-height: 1.6;
+  outline: none;
+}
+.qnote-ta:focus { border-color: var(--accent); }
+.qcard.kb-focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* 年份数据按需加载时的占位 */
 #app:empty::after,
 html[data-loading="true"] #app::after {
@@ -2193,6 +2284,6 @@ html[data-loading="true"] #app::after {
 <script src="supp.js"></script>
 <!-- 各年份重点题/补充真题的题目清单：年份条要显示全部 17 年的完成情况，不必为此载入 17 年题库 -->
 <script src="keymap.js"></script>
-<script src="app.js?v=20261126c"></script>
+<script src="app.js?v=20261127a"></script>
 </body>
 </html>

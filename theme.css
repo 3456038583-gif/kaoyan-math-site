@@ -1,0 +1,645 @@
+/* ==========================================================================
+   考研资料总库 · 全站多主题引擎 & 全局交互组件样式 (theme.css)
+   6 套主题：classic(经典纸感) | glass(液态玻璃) | glass-dark(暗夜玻璃)
+             dark(静谧深色) | sage(护眼青笺) | eink(水墨宣纸)
+   ========================================================================== */
+
+/* ── 1. 字号缩放（阅读舒适度） ──────────────────────────────────────────── */
+:root[data-fontsize="lg"] body { font-size: 16.5px; }
+:root[data-fontsize="xl"] body { font-size: 18px; }
+:root[data-fontsize="lg"] .qstem,
+:root[data-fontsize="lg"] .ansbox .sol,
+:root[data-fontsize="lg"] .note-body { font-size: 16.5px; line-height: 1.82; }
+:root[data-fontsize="xl"] .qstem,
+:root[data-fontsize="xl"] .ansbox .sol,
+:root[data-fontsize="xl"] .note-body { font-size: 18px; line-height: 1.88; }
+
+/* ── 2. 静谧深色（手动暗夜，不依赖系统设置） ──────────────────────────── */
+:root[data-style="dark"] {
+  --paper: #121614 !important;
+  --surface: #1a201c !important;
+  --surface-2: #222924 !important;
+  --ink: #e9eeea !important;
+  --muted: #98a49c !important;
+  --line: #2c352f !important;
+  --line-soft: #242b26 !important;
+  --line-strong: #46534b !important;
+  --mask: #232c26 !important;
+  --accent: #7ab0df !important;
+  --accent-soft: #1b2c3b !important;
+  --accent-ink: #0a1218 !important;
+  --gold: #d6a95e !important;
+  --red: #e07a68 !important;
+  --easy: #67b98f !important;
+  --easy-soft: #16281f !important;
+  --mid: #d7a45b !important;
+  --mid-soft: #2a2114 !important;
+  --hard: #e0735f !important;
+  --hard-soft: #2d1916 !important;
+  --done: #4ade80 !important;
+  --shadow: 0 2px 6px rgba(0, 0, 0, .35), 0 12px 28px -16px rgba(0, 0, 0, .75) !important;
+  color-scheme: dark;
+}
+:root[data-style="dark"][data-view="m2"],
+:root[data-style="dark"][data-view="y2"] { --accent: #6fbb97 !important; --accent-soft: #16281f !important; }
+:root[data-style="dark"][data-view="m3"] { --accent: #c492b2 !important; --accent-soft: #2a1d26 !important; }
+:root[data-style="dark"][data-view="key"] { --accent: #e0735f !important; --accent-soft: #2d1916 !important; }
+:root[data-style="dark"][data-view="supp"] { --accent: #c9b479 !important; --accent-soft: #2a2416 !important; }
+:root[data-style="dark"][data-view="wrong"] { --accent: #c4a3d4 !important; --accent-soft: #2a1f30 !important; }
+:root[data-style="dark"][data-view="mock"],
+:root[data-style="dark"][data-view="pol"] { --accent: #74c0b8 !important; --accent-soft: #182a28 !important; }
+
+/* ── 3. 护眼青笺（Eye-Care Sage） ─────────────────────────────────────── */
+:root[data-style="sage"] {
+  --paper: #e6efe8 !important;
+  --surface: #f2f7f3 !important;
+  --surface-2: #dce8df !important;
+  --ink: #1a2a22 !important;
+  --muted: #53695d !important;
+  --line: #c6d7cb !important;
+  --line-soft: #d5e3d9 !important;
+  --line-strong: #9ab5a3 !important;
+  --mask: #d9e6dc !important;
+  --accent: #22664b !important;
+  --accent-soft: #d2e7dc !important;
+  --accent-ink: #ffffff !important;
+  --gold: #9a7428 !important;
+  --red: #a33d32 !important;
+  --shadow: 0 2px 6px rgba(20, 48, 34, .06), 0 10px 26px -18px rgba(20, 48, 34, .28) !important;
+  color-scheme: light;
+}
+:root[data-style="sage"][data-view="m1"] { --accent: #245a7a !important; --accent-soft: #d4e4ee !important; }
+:root[data-style="sage"][data-view="m3"] { --accent: #6c4666 !important; --accent-soft: #e4d9e3 !important; }
+:root[data-style="sage"][data-view="key"] { --accent: #9e3c30 !important; --accent-soft: #edd9d5 !important; }
+
+/* ── 4. 水墨宣纸（E-Ink Editorial） ────────────────────────────────────── */
+:root[data-style="eink"] {
+  --paper: #ffffff !important;
+  --surface: #ffffff !important;
+  --surface-2: #f4f4f2 !important;
+  --ink: #111111 !important;
+  --muted: #525252 !important;
+  --line: #d4d4d0 !important;
+  --line-soft: #e6e6e2 !important;
+  --line-strong: #262626 !important;
+  --mask: #efefef !important;
+  --accent: #111111 !important;
+  --accent-soft: #ededeb !important;
+  --accent-ink: #ffffff !important;
+  --gold: #404040 !important;
+  --red: #111111 !important;
+  --shadow: none !important;
+  color-scheme: light;
+}
+:root[data-style="eink"] .card,
+:root[data-style="eink"] .qcard,
+:root[data-style="eink"] .mockpcard,
+:root[data-style="eink"] .scorecard,
+:root[data-style="eink"] .q {
+  box-shadow: none !important;
+  border-color: #262626 !important;
+  border-radius: 2px !important;
+}
+
+/* ── 5. Liquid Glass 液态玻璃（亮色） ──────────────────────────────────── */
+:root[data-style="glass"] {
+  --paper: #edf3fb !important;
+  --surface: rgba(255, 255, 255, 0.62) !important;
+  --surface-2: rgba(255, 255, 255, 0.44) !important;
+  --ink: #0f172a !important;
+  --muted: #475569 !important;
+  --line: rgba(255, 255, 255, 0.72) !important;
+  --line-soft: rgba(148, 163, 184, 0.24) !important;
+  --line-strong: rgba(100, 116, 139, 0.42) !important;
+  --mask: rgba(255, 255, 255, 0.48) !important;
+  --accent: #1d5fb8 !important;
+  --accent-soft: rgba(29, 95, 184, 0.12) !important;
+  --accent-ink: #ffffff !important;
+  --gold: #b47c24 !important;
+  --red: #c23b3b !important;
+  --shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 10px 32px -12px rgba(24, 58, 108, 0.18), 0 2px 6px rgba(15, 23, 42, 0.05) !important;
+  --glass-bg: rgba(255, 255, 255, 0.56);
+  --glass-bg-strong: rgba(255, 255, 255, 0.74);
+  --glass-border: rgba(255, 255, 255, 0.78);
+  --glass-specular: inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 rgba(255, 255, 255, 0.35);
+  color-scheme: light;
+}
+:root[data-style="glass"][data-view="m2"],
+:root[data-style="glass"][data-view="y2"] { --accent: #127857 !important; --accent-soft: rgba(18, 120, 87, 0.13) !important; }
+:root[data-style="glass"][data-view="m3"] { --accent: #863d73 !important; --accent-soft: rgba(134, 61, 115, 0.13) !important; }
+:root[data-style="glass"][data-view="key"] { --accent: #c23b3b !important; --accent-soft: rgba(194, 59, 59, 0.12) !important; }
+:root[data-style="glass"][data-view="mock"],
+:root[data-style="glass"][data-view="pol"] { --accent: #0f766e !important; --accent-soft: rgba(15, 118, 110, 0.13) !important; }
+
+:root[data-style="glass"] body {
+  background:
+    radial-gradient(64% 58% at 12% 8%, rgba(153, 206, 255, 0.55) 0%, transparent 62%),
+    radial-gradient(56% 52% at 88% 12%, rgba(216, 180, 254, 0.45) 0%, transparent 60%),
+    radial-gradient(60% 56% at 78% 86%, rgba(153, 246, 228, 0.42) 0%, transparent 62%),
+    radial-gradient(52% 48% at 16% 84%, rgba(254, 215, 170, 0.36) 0%, transparent 60%),
+    linear-gradient(150deg, #eef4fc 0%, #f4f2fc 50%, #ebf7f5 100%) !important;
+  background-attachment: fixed !important;
+}
+
+/* ── 6. Liquid Glass Dark 暗夜液态玻璃 ────────────────────────────────── */
+:root[data-style="glass-dark"] {
+  --paper: #090e1a !important;
+  --surface: rgba(20, 30, 50, 0.56) !important;
+  --surface-2: rgba(28, 41, 66, 0.48) !important;
+  --ink: #eef4ff !important;
+  --muted: #9eb2cf !important;
+  --line: rgba(173, 208, 255, 0.17) !important;
+  --line-soft: rgba(173, 208, 255, 0.1) !important;
+  --line-strong: rgba(173, 208, 255, 0.34) !important;
+  --mask: rgba(148, 191, 255, 0.12) !important;
+  --accent: #73b9ff !important;
+  --accent-soft: rgba(115, 185, 255, 0.16) !important;
+  --accent-ink: #071221 !important;
+  --gold: #eab967 !important;
+  --red: #ff8577 !important;
+  --easy: #5fd19d !important;
+  --easy-soft: rgba(95, 209, 157, 0.14) !important;
+  --mid: #eab967 !important;
+  --mid-soft: rgba(234, 185, 103, 0.14) !important;
+  --hard: #ff8577 !important;
+  --hard-soft: rgba(255, 133, 119, 0.15) !important;
+  --done: #4ade80 !important;
+  --shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 14px 38px -14px rgba(0, 0, 0, 0.72) !important;
+  --glass-bg: rgba(18, 27, 46, 0.54);
+  --glass-bg-strong: rgba(16, 24, 42, 0.74);
+  --glass-border: rgba(186, 218, 255, 0.19);
+  --glass-specular: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  color-scheme: dark;
+}
+:root[data-style="glass-dark"][data-view="m2"],
+:root[data-style="glass-dark"][data-view="y2"] { --accent: #5eead4 !important; --accent-soft: rgba(94, 234, 212, 0.15) !important; }
+:root[data-style="glass-dark"][data-view="m3"] { --accent: #e09ce0 !important; --accent-soft: rgba(224, 156, 224, 0.15) !important; }
+:root[data-style="glass-dark"][data-view="key"] { --accent: #ff8577 !important; --accent-soft: rgba(255, 133, 119, 0.16) !important; }
+:root[data-style="glass-dark"][data-view="mock"],
+:root[data-style="glass-dark"][data-view="pol"] { --accent: #67e8f9 !important; --accent-soft: rgba(103, 232, 249, 0.15) !important; }
+
+:root[data-style="glass-dark"] body {
+  background:
+    radial-gradient(62% 55% at 14% 10%, rgba(37, 99, 235, 0.34) 0%, transparent 62%),
+    radial-gradient(54% 50% at 86% 14%, rgba(124, 58, 237, 0.28) 0%, transparent 60%),
+    radial-gradient(58% 54% at 80% 84%, rgba(13, 148, 136, 0.25) 0%, transparent 62%),
+    radial-gradient(48% 44% at 18% 86%, rgba(59, 130, 246, 0.2) 0%, transparent 60%),
+    linear-gradient(155deg, #070b15 0%, #0b1222 50%, #08131d 100%) !important;
+  background-attachment: fixed !important;
+}
+
+/* ── 7. Liquid Glass 共享玻璃材质（亮/暗共用） ────────────────────────── */
+:root[data-style="glass"] .cd-bar,
+:root[data-style="glass-dark"] .cd-bar {
+  background: var(--glass-bg-strong) !important;
+  backdrop-filter: blur(22px) saturate(185%);
+  -webkit-backdrop-filter: blur(22px) saturate(185%);
+  border-bottom: 1px solid var(--glass-border) !important;
+  box-shadow: var(--glass-specular);
+}
+
+:root[data-style="glass"] .sitebar,
+:root[data-style="glass"] .topbar,
+:root[data-style="glass"] .navwrap,
+:root[data-style="glass"] .pbar,
+:root[data-style="glass-dark"] .sitebar,
+:root[data-style="glass-dark"] .topbar,
+:root[data-style="glass-dark"] .navwrap,
+:root[data-style="glass-dark"] .pbar {
+  background: var(--glass-bg-strong) !important;
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border-bottom: 1px solid var(--glass-border) !important;
+  box-shadow: var(--glass-specular);
+}
+
+:root[data-style="glass"] .sitebar,
+:root[data-style="glass-dark"] .sitebar {
+  padding-inline: 16px;
+  border-radius: 0 0 16px 16px;
+}
+
+:root[data-style="glass"] .topbar,
+:root[data-style="glass-dark"] .topbar {
+  padding-inline: 16px;
+  border-radius: 0 0 16px 16px;
+}
+
+:root[data-style="glass"] .card,
+:root[data-style="glass"] .qcard,
+:root[data-style="glass"] .mockpcard,
+:root[data-style="glass"] .scorecard,
+:root[data-style="glass"] .qjumpbar,
+:root[data-style="glass"] .q,
+:root[data-style="glass"] .pcard,
+:root[data-style="glass"] .wcard,
+:root[data-style="glass"] .dash-strip,
+:root[data-style="glass"] .ansbox,
+:root[data-style="glass"] .topicbox,
+:root[data-style="glass"] .note-wrap,
+:root[data-style="glass"] .callout,
+:root[data-style="glass"] .box,
+:root[data-style="glass-dark"] .card,
+:root[data-style="glass-dark"] .qcard,
+:root[data-style="glass-dark"] .mockpcard,
+:root[data-style="glass-dark"] .scorecard,
+:root[data-style="glass-dark"] .qjumpbar,
+:root[data-style="glass-dark"] .q,
+:root[data-style="glass-dark"] .pcard,
+:root[data-style="glass-dark"] .wcard,
+:root[data-style="glass-dark"] .dash-strip,
+:root[data-style="glass-dark"] .ansbox,
+:root[data-style="glass-dark"] .topicbox,
+:root[data-style="glass-dark"] .note-wrap,
+:root[data-style="glass-dark"] .callout,
+:root[data-style="glass-dark"] .box {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(22px) saturate(185%);
+  -webkit-backdrop-filter: blur(22px) saturate(185%);
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shadow) !important;
+}
+
+:root[data-style="glass"] .card:hover,
+:root[data-style="glass"] .mockpcard:hover,
+:root[data-style="glass-dark"] .card:hover,
+:root[data-style="glass-dark"] .mockpcard:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent) !important;
+  box-shadow: var(--glass-specular), 0 16px 38px -12px rgba(29, 95, 184, 0.28) !important;
+}
+
+:root[data-style="glass"] body::before,
+:root[data-style="glass-dark"] body::before {
+  background: transparent !important;
+}
+
+/* ── 8. 全站阅读进度条 ──────────────────────────────────────────────────── */
+.ky-prog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2.5px;
+  width: 0%;
+  z-index: 9999;
+  background: linear-gradient(90deg, var(--accent, #2f5d8a), var(--gold, #b5842f));
+  pointer-events: none;
+  transition: width 80ms linear;
+}
+
+/* ── 9. 顶栏外观切换 & 快捷搜索按钮 ────────────────────────────────────── */
+.ky-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  margin-left: 8px;
+}
+.ky-tbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--line, #e0dfd4);
+  border-radius: 999px;
+  background: var(--surface, #fffdf8);
+  color: var(--muted, #6d746c);
+  font-family: var(--sans, -apple-system, sans-serif);
+  font-size: 11.5px;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s, background .15s, transform .12s;
+}
+.ky-tbtn:hover {
+  color: var(--ink, #1b211d);
+  border-color: var(--accent, #2f5d8a);
+}
+.ky-tbtn svg { width: 13px; height: 13px; flex: none; }
+.ky-tbtn kbd {
+  font-family: var(--mono, monospace);
+  font-size: 10px;
+  opacity: .7;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--accent-soft, #e6edf4);
+  color: var(--accent, #2f5d8a);
+}
+@media (max-width: 720px) {
+  .ky-tbtn .ky-lbl, .ky-tbtn kbd { display: none; }
+  .ky-tbtn { width: 26px; padding: 0; }
+}
+
+/* ── 10. 外观主题弹层 ───────────────────────────────────────────────────── */
+.ky-pop {
+  position: fixed;
+  top: 56px;
+  right: 16px;
+  z-index: 9990;
+  width: 288px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line, #e0dfd4);
+  background: var(--surface, #fffdf8);
+  color: var(--ink, #1b211d);
+  box-shadow: 0 18px 48px -12px rgba(15, 23, 42, 0.28);
+  font-family: var(--sans, -apple-system, sans-serif);
+  font-size: 13px;
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  animation: kyFadeIn .16s ease-out;
+}
+:root[data-style="glass"] .ky-pop { background: rgba(255,255,255,0.82); border-color: rgba(255,255,255,0.85); }
+:root[data-style="glass-dark"] .ky-pop { background: rgba(16,24,42,0.86); border-color: rgba(186,218,255,0.22); }
+.ky-pop[hidden] { display: none; }
+.ky-pop-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: .04em;
+}
+.ky-themes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.ky-th {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  border: 1.5px solid var(--line);
+  background: var(--surface-2, transparent);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, transform .12s, background .15s;
+}
+.ky-th:hover { border-color: var(--accent); transform: translateY(-1px); }
+.ky-th.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.ky-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex: none;
+  border: 1px solid rgba(128,128,128,.3);
+}
+.ky-fs {
+  display: flex;
+  gap: 6px;
+}
+.ky-fs button {
+  flex: 1;
+  padding: 6px 0;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.ky-fs button.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink, #fff);
+  font-weight: 600;
+}
+
+/* ── 11. 倒计时栏内置专注番茄钟 ─────────────────────────────────────────── */
+.cd-focus-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+}
+.cd-focus-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line, #e0dfd4);
+  background: var(--paper, #f5f4ee);
+  color: var(--ink, #1b211d);
+  font-family: var(--mono, monospace);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.cd-focus-btn:hover { border-color: var(--accent); color: var(--accent); }
+.cd-focus-btn.running {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink, #fff);
+  font-weight: 600;
+}
+.ky-fpop {
+  position: fixed;
+  top: 42px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9992;
+  width: 276px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 18px 48px -12px rgba(15, 23, 42, 0.3);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  font-family: var(--sans, -apple-system, sans-serif);
+  animation: kyFadeIn .16s ease-out;
+}
+:root[data-style="glass"] .ky-fpop { background: rgba(255,255,255,0.84); }
+:root[data-style="glass-dark"] .ky-fpop { background: rgba(16,24,42,0.88); }
+.ky-fpop[hidden] { display: none; }
+.ky-ftime {
+  font-family: var(--mono, monospace);
+  font-size: 32px;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: .04em;
+  color: var(--accent);
+  margin: 6px 0 10px;
+  font-variant-numeric: tabular-nums;
+}
+.ky-fpresets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 10px; }
+.ky-fpresets button {
+  padding: 5px 0;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.ky-fpresets button:hover, .ky-fpresets button.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.ky-factions { display: flex; gap: 8px; }
+.ky-factions button {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.ky-factions button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink, #fff);
+  font-weight: 600;
+}
+
+/* ── 12. 全局命令面板 (Cmd/Ctrl + K) ───────────────────────────────────── */
+.ky-cmd-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 9995;
+  background: rgba(10, 15, 25, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: min(14vh, 110px) 16px 24px;
+  animation: kyFadeIn .14s ease-out;
+}
+.ky-cmd-mask[hidden] { display: none; }
+.ky-cmd {
+  width: 100%;
+  max-width: 540px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 24px 64px -16px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  overflow: hidden;
+  font-family: var(--sans, -apple-system, sans-serif);
+}
+:root[data-style="glass"] .ky-cmd { background: rgba(255,255,255,0.86); border-color: rgba(255,255,255,0.9); }
+:root[data-style="glass-dark"] .ky-cmd { background: rgba(14,22,38,0.9); border-color: rgba(186,218,255,0.24); }
+.ky-cmd-in {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.ky-cmd-in input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 15px;
+  font-family: inherit;
+}
+.ky-cmd-list {
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 6px;
+}
+.ky-cmd-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.ky-cmd-item:hover, .ky-cmd-item.sel {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ky-cmd-item small {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-family: var(--mono, monospace);
+}
+.ky-cmd-item.sel small { color: var(--accent); opacity: .85; }
+.ky-cmd-foot {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ── 13. 回到顶部悬浮按钮（左下角，避开数学浮动得分卡） ─────────────────── */
+.ky-top {
+  position: fixed;
+  left: 18px;
+  bottom: 22px;
+  z-index: 80;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: var(--shadow, 0 4px 16px rgba(0,0,0,.14));
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity .2s, transform .2s, border-color .15s, color .15s;
+}
+.ky-top.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.ky-top:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+
+/* ── 14. 长公式横向滚动防溢出优化 ──────────────────────────────────────── */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+@keyframes kyFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media print {
+  .ky-prog, .ky-tools, .ky-pop, .ky-fpop, .ky-cmd-mask, .ky-top, .cd-focus-wrap { display: none !important; }
+}
