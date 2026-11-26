@@ -208,27 +208,78 @@
 :root[data-style="glass"] .topbar,
 :root[data-style="glass"] .navwrap,
 :root[data-style="glass"] .pbar,
+:root[data-style="glass"] .lib-search,
 :root[data-style="glass-dark"] .sitebar,
 :root[data-style="glass-dark"] .topbar,
 :root[data-style="glass-dark"] .navwrap,
-:root[data-style="glass-dark"] .pbar {
+:root[data-style="glass-dark"] .pbar,
+:root[data-style="glass-dark"] .lib-search {
   background: var(--glass-bg-strong) !important;
   backdrop-filter: blur(24px) saturate(190%);
   -webkit-backdrop-filter: blur(24px) saturate(190%);
   border-bottom: 1px solid var(--glass-border) !important;
   box-shadow: var(--glass-specular);
+  box-sizing: border-box;
 }
 
+/* 全站顶栏与二级吸顶栏严格左右对齐（消除宽窄不一的台阶感） */
 :root[data-style="glass"] .sitebar,
 :root[data-style="glass-dark"] .sitebar {
-  padding-inline: 16px;
+  padding-inline: 16px !important;
+  border-left: 1px solid var(--glass-border);
+  border-right: 1px solid var(--glass-border);
   border-radius: 0 0 16px 16px;
 }
 
+/* 当 .sitebar 紧邻二级吸顶栏（.pbar / .navwrap）时，底角拉直无缝拼接 */
+:root[data-style="glass"] .sitebar:has(+ .pbar),
+:root[data-style="glass"] .page .sitebar,
+:root[data-style="glass-dark"] .sitebar:has(+ .pbar),
+:root[data-style="glass-dark"] .page .sitebar {
+  border-radius: 0 !important;
+}
+
+/* 英语 / 政治 二级吸顶栏 .pbar：与 .sitebar 严格等宽居中对齐 */
+:root[data-style="glass"] .pbar,
+:root[data-style="glass-dark"] .pbar {
+  max-width: var(--max, 1200px) !important;
+  margin-inline: auto !important;
+  padding-inline: 16px !important;
+  border-left: 1px solid var(--glass-border) !important;
+  border-right: 1px solid var(--glass-border) !important;
+  border-radius: 0 0 16px 16px !important;
+}
+:root[data-style="glass"] .pbar-in,
+:root[data-style="glass-dark"] .pbar-in {
+  max-width: 100% !important;
+}
+
+/* 数学 二级吸顶栏 .navwrap：取消负外边距，与上方 .sitebar 和下方题卡严格等宽对齐 */
+:root[data-style="glass"] .navwrap,
+:root[data-style="glass-dark"] .navwrap {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding-inline: 16px !important;
+  border-left: 1px solid var(--glass-border) !important;
+  border-right: 1px solid var(--glass-border) !important;
+  border-radius: 0 0 16px 16px !important;
+}
+
+/* 首页 .topbar */
 :root[data-style="glass"] .topbar,
 :root[data-style="glass-dark"] .topbar {
-  padding-inline: 16px;
+  padding-inline: 16px !important;
+  border-left: 1px solid var(--glass-border);
+  border-right: 1px solid var(--glass-border);
   border-radius: 0 0 16px 16px;
+}
+
+/* 知识库二级搜索条 */
+:root[data-style="glass"] .lib-search,
+:root[data-style="glass-dark"] .lib-search {
+  padding-inline: 14px !important;
+  border-radius: 14px !important;
+  border: 1px solid var(--glass-border) !important;
 }
 
 :root[data-style="glass"] .card,
