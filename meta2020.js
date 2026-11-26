@@ -80,7 +80,3 @@ KEY_GROUPS[2020] = [
   { topic: '二重积分计算', note: '数二第 19 题用极坐标，$D$ 对应 $0\\le\\theta\\le\\frac\\pi4$、$\\sec\\theta\\le r\\le2\\sec\\theta$，被积函数化为 $\\sec\\theta$，得 $\\frac34(\\sqrt2+\\ln(1+\\sqrt2))$。数三第 18 题设 $A=\\iint_D f\\,d\\sigma$，由对称性 $\\iint_D x\\,d\\sigma=0$ 得 $A=\\frac{3\\pi}{16}$，所求为 $A\\iint_D x^2\\,d\\sigma=\\frac{3\\pi^2}{128}$。', items: [[2, 19], [3, 18]] }
 ];
 
-SUPP[2020] = [
-  { from: 2, title: '数二 → 数一', nums: [2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 15, 16, 18, 19, 20, 21, 22] },
-  { from: 3, title: '数三 → 数一', nums: [1, 2, 4, 8, 10, 12, 14, 15, 17, 18, 22] }
-];

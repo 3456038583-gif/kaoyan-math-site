@@ -10,6 +10,7 @@
   const frameEl = document.getElementById('pdfFrame');
   const pdfTitleEl = document.getElementById('pdfTitle');
   const pdfOpenEl = document.getElementById('pdfOpen');
+  const pdfDlEl = document.getElementById('pdfDl');
 
   const SUBJ_VIEW = { m1: 1, m2: 2, m3: 3 };
   const LV_CLASS = { '常规': 'e', '中档': 'm', '难题': 'h' };
@@ -216,7 +217,7 @@
     VIEW_CACHE.clear();
   };
 
-  const state = { view: 'm1', year: 2010, level: 'all', keyOnly: false, statsSubject: 1, mockSubject: 1, paper: 0 };
+  const state = { view: 'm1', year: 2010, level: 'all', keyOnly: false, statsSubject: 1, mockSubject: 1, suppSubject: 1, paper: 0 };
   const POSITION_KEY = 'kaoyanMath.position.v1';
   const VALID_VIEWS = ['m1', 'm2', 'm3', 'key', 'supp', 'wrong', 'stats', 'mock'];
   // 从英语/政治等板块切回数学时，恢复上次使用的科目与年份。
@@ -226,7 +227,8 @@
         view: state.view,
         year: state.year,
         statsSubject: state.statsSubject,
-        mockSubject: state.mockSubject
+        mockSubject: state.mockSubject,
+        suppSubject: state.suppSubject
       }));
     } catch (e) { /* 禁用存储时仅本次会话有效 */ }
   }
@@ -1252,8 +1254,12 @@
     }
     return out;
   }
-  function suppPageItems(year) {
-    const groups = SUPP[year] || [];
+  function suppGroups(year, subj) {
+    const y = SUPP[year];
+    return (y && y[subj]) || [];
+  }
+  function suppPageItems(year, subj = state.suppSubject || 1) {
+    const groups = suppGroups(year, subj);
     return uniqueItems(year, groups.flatMap(g => g.nums.map(n => [g.from, n])));
   }
   /* 年份条要显示 17 年的完成情况，而题库是按年懒加载的，
@@ -1261,11 +1267,15 @@
      当前这一年直接用渲染时算出的 PAGE_ITEMS，跟屏幕上的卡片一一对应。 */
   function pageItemsOf(year, view) {
     if (year === state.year && PAGE_ITEMS.length) return PAGE_ITEMS;
-    const map = view === 'supp'
-      ? (typeof SUPP_ITEMS !== 'undefined' ? SUPP_ITEMS : null)
-      : (typeof KEY_ITEMS !== 'undefined' ? KEY_ITEMS : null);
-    if (map && map[year] && map[year].length) return map[year];
-    return view === 'supp' ? suppPageItems(year) : keyPageItems(year);
+    if (view === 'supp') {
+      const map = typeof SUPP_ITEMS !== 'undefined' ? SUPP_ITEMS : null;
+      const one = map && map[year] && map[year][state.suppSubject || 1];
+      if (one && one.length) return one;
+      return suppPageItems(year);
+    }
+    const key = typeof KEY_ITEMS !== 'undefined' ? KEY_ITEMS : null;
+    if (key && key[year] && key[year].length) return key[year];
+    return keyPageItems(year);
   }
   function pageScoreStats(year, items) {
     const mk = () => ({ score: 0, max: 0, count: 0, set: 0 });
@@ -2267,16 +2277,25 @@
       ${pageFloatHTML(year)}`;
   }
 
-  /* ── 数一补充真题 ── */
+  /* ── 补充真题（数一 / 数二 / 数三 各一套） ── */
+  const SUPP_PDF = {
+    1: { paper: '/pdfs/supplement/m1-supplement-paper.pdf', sol: '/pdfs/supplement/m1-supplement-sol.pdf' },
+    2: { paper: '/pdfs/supplement/m2-supplement-paper.pdf', sol: '/pdfs/supplement/m2-supplement-sol.pdf' },
+    3: { paper: '/pdfs/supplement/m3-supplement-paper.pdf', sol: '/pdfs/supplement/m3-supplement-sol.pdf' }
+  };
   function suppHTML() {
     const year = state.year;
-    const groups = SUPP[year] || [];
+    const subj = state.suppSubject || 1;
+    const groups = suppGroups(year, subj);
     const total = groups.reduce((s, g) => s + g.nums.length, 0);
+    const files = SUPP_PDF[subj];
+    const name = SUBJ[subj].replace('数学', '数');
+    const froms = [...new Set(groups.map(g => SUBJ[g.from].replace('数学', '数')))];
     const suppPdf = {
-      paper: '/pdfs/supplement/m1-supplement-paper.pdf',
-      sol: '/pdfs/supplement/m1-supplement-sol.pdf',
-      paperTitle: `${year} 年数一补充真题做题本`,
-      solTitle: `${year} 年数一补充真题解析`
+      paper: files.paper,
+      sol: files.sol,
+      paperTitle: `${year} 年${name}补充真题做题本`,
+      solTitle: `${year} 年${name}补充真题解析`
     };
 
     const table = groups.map(g => {
@@ -2307,23 +2326,29 @@
       </section>`;
     }).join('');
     // 本页列出的题目，右下角得分卡和年份条上的完成标记都按这一份算
-    PAGE_ITEMS = suppPageItems(year);
+    PAGE_ITEMS = suppPageItems(year, subj);
+
+    const seg = [1, 2, 3].map(k => {
+      const n = suppGroups(year, k).reduce((a, g) => a + g.nums.length, 0);
+      return `<button class="segbtn" type="button" data-supp-subj="${k}" aria-pressed="${k === subj}">${SUBJ[k].replace('数学', '数')}<span class="cnt">${n}</span></button>`;
+    }).join('');
 
     return `<header class="yearhero">
         <div>
           <p class="kicker">补充真题 · ${year}</p>
-          <h2>${year} 年数一补充真题</h2>
-          <p class="meta">从数二、数三试卷中筛选的数一可做题 · 共 <b>${total}</b> 题</p>
+          <h2>${year} 年${name}补充真题</h2>
+          <p class="meta">${froms.length ? `从${froms.join('、')}试卷中筛选的${name}可做题` : `${name}补充题整理中`} · 共 <b>${total}</b> 题</p>
         </div>
         <div class="pdfbtns">
-          <button class="btn primary" type="button" data-pdf="/pdfs/supplement/m1-supplement-paper.pdf" data-pdf-title="数学（一）补充真题做题本">
+          <div class="segmented" role="group" aria-label="补充真题科目">${seg}</div>
+          <button class="btn primary" type="button" data-pdf="${files.paper}" data-pdf-title="数学（${['', '一', '二', '三'][subj]}）补充真题做题本">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 1.5h5l3 3v10H4z"/><path d="M9 1.5v3h3"/><path d="M6 9h4M6 11.5h4"/></svg>做题本 PDF</button>
-          <button class="btn" type="button" data-pdf="/pdfs/supplement/m1-supplement-sol.pdf" data-pdf-title="数学（一）补充真题解析">解析 PDF</button>
+          <button class="btn" type="button" data-pdf="${files.sol}" data-pdf-title="数学（${['', '一', '二', '三'][subj]}）补充真题解析">解析 PDF</button>
         </div>
       </header>
       <div class="card supp-intro">
-        <p><b>怎么用：</b>数一考生在刷完数一真题后，可把数二、数三中符合数一大纲的题目当作额外练习。这里按年份把补充题对照回原卷题号，并逐题列出题干、答案与解析。</p>
-        <p>点击对照表中的题号，可直接定位到下方对应题目；每题右下角的「原卷定位」会跳回该题在数二／数三真题页的位置。</p>
+        <p><b>怎么用：</b>${name}考生在刷完${name}真题后，可把${froms.join('、')}中符合${name}大纲的题目当作额外练习。这里按年份把补充题对照回原卷题号，并逐题列出题干、答案与解析。</p>
+        <p>点击对照表中的题号，可直接定位到下方对应题目；每题右下角的「原卷定位」会跳回该题在${froms.join('／')}真题页的位置。</p>
         <p>每题上限的「✓ / ✗」与解答题的「得分」直接记在原卷那一题上：和在真题页记分是同一份数据，同题还会自动同步。</p>
       </div>
       <section class="section">
@@ -2874,7 +2899,9 @@
     ? `stats|${state.statsSubject}|${statsChartWidth()}`
     : state.view === 'mock'
       ? `mock|${state.mockSubject}|${state.paper}`
-      : `${state.view}|${state.year}`;
+      : state.view === 'supp'
+        ? `supp|${state.year}|${state.suppSubject || 1}`
+        : `${state.view}|${state.year}`;
 
   // 难度 / 重点筛选只改显隐，不重建页面
   function applyFilter() {
@@ -2947,6 +2974,9 @@
 
   function renderNow() {
     document.documentElement.dataset.view = state.view;
+    // 页面可能直接命中缓存（不重建），清掉上一页的题目清单，
+    // 免得年份条的完成度按别的年份 / 别的科目算
+    PAGE_ITEMS = [];
     // 打开某一套模拟卷时，以题库里的科目为准（URL 里没带 subj 也能正确显示）
     if (state.paper && typeof MOCK_PAPERS !== 'undefined' && MOCK_PAPERS[state.paper]) {
       state.mockSubject = MOCK_PAPERS[state.paper].subject;
@@ -2954,6 +2984,7 @@
     try {
       const qs = new URLSearchParams({ view: state.view, year: String(state.year) });
       if (state.view === 'stats') qs.set('subj', String(state.statsSubject));
+      if (state.view === 'supp') qs.set('subj', String(state.suppSubject || 1));
       if (state.view === 'mock') {
         qs.set('subj', String(state.mockSubject));
         if (state.paper) qs.set('paper', String(state.paper));
@@ -3060,6 +3091,16 @@
     pdfTitleEl.textContent = title || 'PDF';
     frameEl.src = path;
     pdfOpenEl.href = path;
+    if (pdfDlEl) {
+      pdfDlEl.href = path;
+      /* 下载名跟随标题：2021 年数学（一）真题试卷 → 2021-年数学（一）真题试卷.pdf */
+      const name = (title || '')
+        .replace(/[\\/:*?"<>|]+/g, '')
+        .replace(/[\s·]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      pdfDlEl.setAttribute('download', (name || 'paper') + '.pdf');
+    }
     sheetEl.hidden = false;
     document.body.style.overflow = 'hidden';
   }
@@ -3581,6 +3622,16 @@
       return;
     }
 
+    const suppSeg = e.target.closest('[data-supp-subj]');
+    if (suppSeg) {
+      const s2 = Number(suppSeg.dataset.suppSubj);
+      if (s2 === state.suppSubject) return;
+      state.suppSubject = s2;
+      render();
+      scrollTop();
+      return;
+    }
+
     const statsSeg = e.target.closest('[data-stats-subj]');
     if (statsSeg) {
       const s = Number(statsSeg.dataset.statsSubj);
@@ -4020,11 +4071,14 @@
   if (ps >= 1 && ps <= 3) {
     state.statsSubject = ps;
     state.mockSubject = ps;
+    state.suppSubject = ps;
   } else if (previous) {
     const prevStats = Number(previous.statsSubject);
     const prevMock = Number(previous.mockSubject);
+    const prevSupp = Number(previous.suppSubject);
     if (prevStats >= 1 && prevStats <= 3) state.statsSubject = prevStats;
     if (prevMock >= 1 && prevMock <= 3) state.mockSubject = prevMock;
+    if (prevSupp >= 1 && prevSupp <= 3) state.suppSubject = prevSupp;
   }
   const py = Number(params.get('year'));
   const previousYear = previous ? Number(previous.year) : 0;

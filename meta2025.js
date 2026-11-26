@@ -87,7 +87,3 @@ KEY_GROUPS[2025] = [
   { topic: '二维离散型随机变量分布', note: '数一第 22/数三第 22 题：$P\\{Y>0\\}=P\\{X>100\\}=\\int_{100}^{+\\infty}\\frac{2\\cdot100^2}{(100+x)^3}dx=\\frac14$；$EY=\\int_{100}^{+\\infty}\\frac{(x-100)\\cdot2\\cdot100^2}{(100+x)^3}dx=50$。由 $N\\sim P(8)$、$M\\mid N=n\\sim B\\left(n,\\frac14\\right)$，得 $P\\{M=m\\}=\\sum_{n\\ge m}e^{-8}\\frac{8^n}{n!}C_n^m\\left(\\frac14\\right)^m\\left(\\frac34\\right)^{n-m}=e^{-2}\\frac{2^m}{m!}$，即 $M\\sim P(2)$。', items: [[1, 22], [3, 22]] }
 ];
 
-SUPP[2025] = [
-  { from: 2, title: '数二 → 数一', nums: [1, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 20, 22] },
-  { from: 3, title: '数三 → 数一', nums: [1, 3, 4, 5, 6, 7, 8, 11, 13, 14, 15, 16, 19, 21] }
-];

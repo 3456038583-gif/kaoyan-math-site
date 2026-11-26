@@ -20,7 +20,7 @@ const YEAR_INFO = {
    2010/2011 的元数据就在本文件里，只有试卷数据需要另载。 */
 const LOADED_YEARS = new Set();
 const YEAR_LOADS = new Map();
-const YEAR_FILES = y => (y >= 2012 ? [`data${y}.js`, `meta${y}.js`] : [`data${y}.js`]);
+const YEAR_FILES = y => (y >= 2012 ? [`/data${y}.js`, `/meta${y}.js`] : [`/data${y}.js`]);
 
 function loadScriptOnce(src) {
   return new Promise((resolve, reject) => {
@@ -206,13 +206,4 @@ const KEY_GROUPS = {
   ]
 };
 
-const SUPP = {
-  2010: [
-    { from: 2, title: '数二 → 数一', nums: [1, 2, 3, 7, 9, 10, 11, 12, 13, 14, 17, 18, 19, 20, 21, 23] },
-    { from: 3, title: '数三 → 数一', nums: [1, 3, 4, 9, 10, 12, 14, 15, 16, 17, 19, 23] }
-  ],
-  2011: [
-    { from: 2, title: '数二 → 数一', nums: [1, 2, 3, 4, 5, 9, 12, 13, 14, 15, 16, 18, 20] },
-    { from: 3, title: '数三 → 数一', nums: [3, 6, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 23] }
-  ]
-};
+const SUPP = {};   /* 各年各科的补充真题题号，见 supp.js */
