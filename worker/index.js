@@ -383,21 +383,46 @@ async function handleVerifyPhoneCode(request, env) {
 
 /* ─────────────────────────── OAuth (Google / GitHub) ─────────────────────────── */
 
+function getOAuthCallbackOrigin(request) {
+  const url = new URL(request.url);
+  const host = url.hostname.toLowerCase();
+  if (host === 'feikntn111.com' || host.endsWith('.feikntn111.com')) return 'https://kaoyan.feikntn111.com';
+  if (host === 'feikntn111.us.ci' || host.endsWith('.feikntn111.us.ci')) return 'https://kaoyan.feikntn111.us.ci';
+  return `${url.protocol}//${url.host}`;
+}
+
+function sanitizeReturnUrl(raw, fallbackOrigin) {
+  const s = String(raw || '/');
+  if (s.startsWith('/') && !s.startsWith('//')) return `${fallbackOrigin}${s}`;
+  try {
+    const u = new URL(s);
+    const h = u.hostname.toLowerCase();
+    if (
+      (u.protocol === 'https:' && (h === 'feikntn111.com' || h.endsWith('.feikntn111.com') || h === 'feikntn111.us.ci' || h.endsWith('.feikntn111.us.ci'))) ||
+      `${u.protocol}//${u.host}` === fallbackOrigin
+    ) {
+      return u.toString();
+    }
+  } catch (_) {}
+  return `${fallbackOrigin}/`;
+}
+
 async function handleOAuthStart(request, env, provider) {
   const url = new URL(request.url);
-  const next = sanitizeNext(url.searchParams.get('next') || '/');
-  const origin = `${url.protocol}//${url.host}`;
+  const reqOrigin = `${url.protocol}//${url.host}`;
+  const returnTo = sanitizeReturnUrl(url.searchParams.get('next') || '/', reqOrigin);
+  const cbOrigin = getOAuthCallbackOrigin(request);
   const state = randomToken(18);
-  const statePayload = btoa(JSON.stringify({ s: state, n: next, p: provider }));
+  const statePayload = btoa(JSON.stringify({ s: state, n: returnTo, p: provider }));
 
   let authUrl;
   if (provider === 'google') {
     if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
-      return redirectWithError(next, 'Google 登录尚未配置');
+      return redirectWithError(returnTo, 'Google 登录尚未配置');
     }
     const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     u.searchParams.set('client_id', env.GOOGLE_CLIENT_ID);
-    u.searchParams.set('redirect_uri', `${origin}/api/auth/oauth/google/callback`);
+    u.searchParams.set('redirect_uri', `${cbOrigin}/api/auth/oauth/google/callback`);
     u.searchParams.set('response_type', 'code');
     u.searchParams.set('scope', 'openid email profile');
     u.searchParams.set('state', state);
@@ -405,11 +430,11 @@ async function handleOAuthStart(request, env, provider) {
     authUrl = u.toString();
   } else {
     if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
-      return redirectWithError(next, 'GitHub 登录尚未配置');
+      return redirectWithError(returnTo, 'GitHub 登录尚未配置');
     }
     const u = new URL('https://github.com/login/oauth/authorize');
     u.searchParams.set('client_id', env.GITHUB_CLIENT_ID);
-    u.searchParams.set('redirect_uri', `${origin}/api/auth/oauth/github/callback`);
+    u.searchParams.set('redirect_uri', `${cbOrigin}/api/auth/oauth/github/callback`);
     u.searchParams.set('scope', 'read:user user:email');
     u.searchParams.set('state', state);
     authUrl = u.toString();
@@ -419,26 +444,27 @@ async function handleOAuthStart(request, env, provider) {
     status: 302,
     headers: {
       Location: authUrl,
-      'Set-Cookie': buildCookie(request, OAUTH_STATE_COOKIE, statePayload, 600, false)
+      'Set-Cookie': buildCookie(request, OAUTH_STATE_COOKIE, statePayload, 600, true)
     }
   });
 }
 
 async function handleOAuthCallback(request, env, provider) {
   const url = new URL(request.url);
+  const reqOrigin = `${url.protocol}//${url.host}`;
+  const cbOrigin = getOAuthCallbackOrigin(request);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const rawState = getCookie(request, OAUTH_STATE_COOKIE);
 
   let saved = null;
   try { saved = rawState ? JSON.parse(atob(rawState)) : null; } catch (_) {}
-  const next = sanitizeNext(saved?.n || '/');
+  const next = sanitizeReturnUrl(saved?.n || '/', reqOrigin);
 
   if (!code || !state || !saved || saved.s !== state || saved.p !== provider) {
     return redirectWithError(next, '第三方登录校验失败，请重试');
   }
 
-  const origin = `${url.protocol}//${url.host}`;
   let profile;
 
   if (provider === 'google') {
@@ -449,7 +475,7 @@ async function handleOAuthCallback(request, env, provider) {
         code,
         client_id: env.GOOGLE_CLIENT_ID,
         client_secret: env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: `${origin}/api/auth/oauth/google/callback`,
+        redirect_uri: `${cbOrigin}/api/auth/oauth/google/callback`,
         grant_type: 'authorization_code'
       }).toString()
     });
@@ -478,7 +504,7 @@ async function handleOAuthCallback(request, env, provider) {
         client_id: env.GITHUB_CLIENT_ID,
         client_secret: env.GITHUB_CLIENT_SECRET,
         code,
-        redirect_uri: `${origin}/api/auth/oauth/github/callback`
+        redirect_uri: `${cbOrigin}/api/auth/oauth/github/callback`
       })
     });
     if (!tokenRes.ok) return redirectWithError(next, 'GitHub 授权换取令牌失败');
@@ -518,7 +544,7 @@ async function handleOAuthCallback(request, env, provider) {
 
   const headers = new Headers({ Location: next });
   headers.append('Set-Cookie', buildCookie(request, SESSION_COOKIE, sid, SESSION_TTL_MS / 1000, true));
-  headers.append('Set-Cookie', buildClearCookie(request, OAUTH_STATE_COOKIE, false));
+  headers.append('Set-Cookie', buildClearCookie(request, OAUTH_STATE_COOKIE, true));
   return new Response(null, { status: 302, headers });
 }
 
