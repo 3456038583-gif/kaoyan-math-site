@@ -1,12 +1,22 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "kaoyan-math-site",
+  "main": "worker/index.js",
   "compatibility_date": "2026-10-23",
   "observability": {
     "enabled": true
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kaoyan-cloud",
+      "database_id": "7b9c051d-b640-40db-bf1b-655fcb0a4749"
+    }
+  ],
   "assets": {
-    "directory": "."
+    "directory": ".",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
   },
   "routes": [
     {

@@ -466,6 +466,13 @@
     initFocus();
     initToolbarAndPalette();
     initScrollHelpers();
+    if (!document.getElementById('ky-sync-js')) {
+      var sc = document.createElement('script');
+      sc.id = 'ky-sync-js';
+      sc.src = '/sync.js?v=20261127a';
+      sc.defer = true;
+      (document.body || document.documentElement).appendChild(sc);
+    }
   }
 
   if (document.readyState === 'loading') {

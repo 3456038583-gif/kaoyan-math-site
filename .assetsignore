@@ -13,3 +13,6 @@ node_modules
 .npmrc
 README.md
 .gitignore
+
+/worker
+/migrations
