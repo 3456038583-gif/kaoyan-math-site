@@ -345,8 +345,25 @@
         { label: '政治真题 & 27 肖八', sub: '17年 + 8套', url: '/politics/' },
         { label: '英语词汇 · 27 红宝书', sub: '6,529 词', url: '/vocab/' },
         { label: '考研知识库（高数 / 线代 / 概率 / 政治一页纸）', sub: '259 篇笔记', url: '/library/' },
-        { label: '数据备份导出与桌面版', sub: 'JSON Backup', url: '/export/' }
+        { label: '数据备份导出与桌面版', sub: 'JSON Backup', url: '/export/' },
+        { label: '使用指南与常见问题', sub: 'Guide & Shortcuts', url: '/guide/' },
+        { label: '意见反馈（复制邮箱 feikntn111@gmail.com）', sub: 'Feedback', act: function () {
+          var em = 'feikntn111@gmail.com';
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(em).then(function () { alert('已复制反馈邮箱：' + em); }).catch(function () { window.prompt('反馈邮箱：', em); });
+          } else { window.prompt('反馈邮箱：', em); }
+        } }
       ]);
+    } else {
+      ITEMS.push(
+        { label: '使用指南与常见问题（主站）', sub: 'Guide', url: 'https://kaoyan.feikntn111.com/guide/' },
+        { label: '意见反馈（复制邮箱 feikntn111@gmail.com）', sub: 'Feedback', act: function () {
+          var em = 'feikntn111@gmail.com';
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(em).then(function () { alert('已复制反馈邮箱：' + em); }).catch(function () { window.prompt('反馈邮箱：', em); });
+          } else { window.prompt('反馈邮箱：', em); }
+        } }
+      );
     }
     THEMES.forEach(function (t) {
       ITEMS.push({ label: '切换主题：' + t.name, sub: 'Theme · ' + t.id, act: function () { applyTheme(t.id); } });
