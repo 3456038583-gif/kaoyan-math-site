@@ -10,6 +10,10 @@
   },
   "routes": [
     {
+      "pattern": "math.feikntn111.com",
+      "custom_domain": true
+    },
+    {
       "pattern": "math.feikntn111.us.ci",
       "custom_domain": true
     }

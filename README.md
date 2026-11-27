@@ -4,9 +4,9 @@
 
 纯静态站点，无构建步骤、无后端依赖，KaTeX 已本地化部署。
 
-> 线上地址：<https://math.feikntn111.us.ci>
+> 线上地址：<https://math.feikntn111.com>（原旧域 `math.feikntn111.us.ci` 同步保留）
 >
-> 这是**只含数学**的独立站。整套考研资料（数学 / 英语 / 政治 / 词汇 / 知识库 / macOS 桌面版）的主站在 [kaoyan-hub](https://github.com/3456038583-gif/kaoyan-hub)（<https://kaoyan.feikntn111.us.ci>），两边共用同一套 `app.js` / `data*.js` / `meta*.js` / `mockdata.js` / `theme.css` / `countdown.js`。
+> 这是**只含数学**的独立站。整套考研资料（数学 / 英语 / 政治 / 词汇 / 知识库 / macOS 桌面版）的主站在 [kaoyan-hub](https://github.com/3456038583-gif/kaoyan-hub)（<https://kaoyan.feikntn111.com>），两边共用同一套 `app.js` / `data*.js` / `meta*.js` / `mockdata.js` / `theme.css` / `countdown.js`。
 
 ## 核心功能
 

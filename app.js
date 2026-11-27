@@ -3964,8 +3964,8 @@
      要么走本地 json 文件。导出只读，不会改动当前站点已有的记录。 */
   const SYNC_VERSION = 1;
   const SYNC_BANNER_KEY = 'kaoyanMath.sync.banner';
-  const SYNC_HUB_URL = 'https://kaoyan.feikntn111.us.ci/math/';
-  const SYNC_MATH_URL = 'https://math.feikntn111.us.ci/';
+  const SYNC_HUB_URL = 'https://kaoyan.feikntn111.com/math/';
+  const SYNC_MATH_URL = 'https://math.feikntn111.com/';
   const SYNC_KEYS = [SCORE_STORE_KEY, MOCK_KEY, WRONG_KEY];
 
   const b64encode = str => {
@@ -4180,7 +4180,7 @@
     const ep = syncEndpoint();
     const label = ep.isHub ? '从数学站导入' : '迁移到总库';
     const title = ep.isHub
-      ? '打开 math.feikntn111.us.ci，把那里的成绩、模拟卷和错题带过来'
+      ? '打开 math.feikntn111.com，把那里的成绩、模拟卷和错题带过来'
       : '把这里填过的成绩、模拟卷和错题带到总库的数学页';
     return `<div class="scorefoot migrate">
         <span>换站迁移：把本机在另一个站点记录的成绩、模拟卷和错题带过来。数据只在浏览器里流转（不进服务器），原站点的记录不会被改动。</span>
