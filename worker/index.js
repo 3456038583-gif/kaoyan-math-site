@@ -130,16 +130,24 @@ function getEnabledProviders(env) {
 /* ─────────────────────────── 邮箱 + 密码 ─────────────────────────── */
 
 async function handleEmailRegister(request, env) {
+  if (!env.RESEND_API_KEY) {
+    return json({ error: '邮箱发信服务尚未配置（RESEND_API_KEY），暂无法发送注册验证码，请先使用 Google / GitHub 登录' }, 503);
+  }
   const body = await readJson(request);
   const email = normalizeEmail(body?.email);
   const password = String(body?.password || '');
+  const code = String(body?.code || '').trim();
   const name = String(body?.name || '').trim().slice(0, 40);
 
   if (!isValidEmail(email)) return json({ error: '请输入有效的邮箱地址' }, 400);
   if (password.length < 6 || password.length > 128) return json({ error: '密码长度需在 6 到 128 位之间' }, 400);
+  if (!/^\d{6}$/.test(code)) return json({ error: '请先获取并输入 6 位邮箱验证码' }, 400);
 
   const existing = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
   if (existing) return json({ error: '该邮箱已注册，请直接登录' }, 409);
+
+  const verifyErr = await consumeVerificationCode(env, 'email', email, code);
+  if (verifyErr) return json({ error: verifyErr }, 400);
 
   const now = Date.now();
   const userId = crypto.randomUUID();
@@ -148,7 +156,7 @@ async function handleEmailRegister(request, env) {
 
   await env.DB.batch([
     env.DB.prepare(
-      'INSERT INTO users (id, email, name, password_hash, email_verified, created_at, updated_at, last_login_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)'
+      'INSERT INTO users (id, email, name, password_hash, email_verified, created_at, updated_at, last_login_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)'
     ).bind(userId, email, displayName, pwHash, now, now, now),
     env.DB.prepare(
       'INSERT INTO auth_identities (id, user_id, provider, provider_user_id, provider_email, provider_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
@@ -188,7 +196,13 @@ async function handleSendEmailCode(request, env) {
 
   const body = await readJson(request);
   const email = normalizeEmail(body?.email);
+  const purpose = body?.purpose === 'register' ? 'register' : 'login';
   if (!isValidEmail(email)) return json({ error: '请输入有效的邮箱地址' }, 400);
+
+  if (purpose === 'register') {
+    const existing = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
+    if (existing) return json({ error: '该邮箱已注册，请直接登录' }, 409);
+  }
 
   const ip = getClientIp(request);
   const rateErr = await checkCodeRateLimit(env, 'email', email, ip);
@@ -200,7 +214,7 @@ async function handleSendEmailCode(request, env) {
 
   await env.DB.prepare(
     'INSERT INTO verification_codes (id, channel, target, purpose, code_hash, expires_at, ip, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  ).bind(crypto.randomUUID(), 'email', email, 'login', codeHash, now + CODE_TTL_MS, ip, now).run();
+  ).bind(crypto.randomUUID(), 'email', email, purpose, codeHash, now + CODE_TTL_MS, ip, now).run();
 
   const from = env.RESEND_FROM || '考研资料总库 <noreply@feikntn111.com>';
   const res = await fetch('https://api.resend.com/emails', {

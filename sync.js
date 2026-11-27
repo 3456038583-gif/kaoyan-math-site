@@ -454,11 +454,18 @@
     if (state.mode === 'password') {
       var isReg = state.pwSubMode === 'register';
       formHtml = ''
+        + (isReg && !p.emailCode ? '<div class="ky-auth-msg info">邮箱注册需先验证邮箱验证码（待配置 Resend 发信密钥）。你现在可以直接使用下方的 Google / GitHub 一键登录。</div>' : '')
         + '<form id="ky-auth-form">'
         + (isReg ? '<div class="ky-auth-field"><label>昵称（选填）</label><input class="ky-auth-input" name="name" placeholder="例如：27考研必胜" maxlength="40"></div>' : '')
         + '<div class="ky-auth-field"><label>邮箱</label><input class="ky-auth-input" type="email" name="email" required autocomplete="email" placeholder="you@example.com"></div>'
+        + (isReg
+          ? '<div class="ky-auth-field"><label>邮箱验证码</label><div class="ky-auth-row">'
+            + '  <input class="ky-auth-input" name="code" required pattern="\\d{6}" maxlength="6" placeholder="输入 6 位验证码">'
+            + '  <button type="button" class="ky-auth-btn2" id="ky-send-code"' + (!p.emailCode || state.cooldown > 0 ? ' disabled' : '') + '>' + (state.cooldown > 0 ? state.cooldown + 's' : '获取验证码') + '</button>'
+            + '</div></div>'
+          : '')
         + '<div class="ky-auth-field"><label>密码' + (isReg ? '（至少 6 位）' : '') + '</label><input class="ky-auth-input" type="password" name="password" required minlength="6" autocomplete="' + (isReg ? 'new-password' : 'current-password') + '" placeholder="请输入密码"></div>'
-        + '<button type="submit" class="ky-auth-btn">' + (isReg ? '注册并开启云同步' : '登录并同步数据') + '</button>'
+        + '<button type="submit" class="ky-auth-btn"' + (isReg && !p.emailCode ? ' disabled' : '') + '>' + (isReg ? '验证邮箱并注册' : '登录并同步数据') + '</button>'
         + '<div class="ky-auth-switch">'
         + '  <span>' + (isReg ? '已有账号？' : '还没有账号？') + '</span>'
         + '  <button type="button" class="ky-auth-link" id="ky-toggle-reg">' + (isReg ? '返回登录' : '用邮箱注册新账号') + '</button>'
@@ -530,8 +537,11 @@
     if (sendBtn) {
       sendBtn.addEventListener('click', function () {
         var form = modalMask.querySelector('#ky-auth-form');
-        var endpoint = state.mode === 'emailCode' ? '/api/auth/email/send-code' : '/api/auth/phone/send-code';
-        var payload = state.mode === 'emailCode' ? { email: form.email.value } : { phone: form.phone.value };
+        var isPhone = state.mode === 'phone';
+        var endpoint = isPhone ? '/api/auth/phone/send-code' : '/api/auth/email/send-code';
+        var payload = isPhone
+          ? { phone: form.phone.value }
+          : { email: form.email.value, purpose: state.mode === 'password' ? 'register' : 'login' };
         sendBtn.disabled = true;
         api(endpoint, { method: 'POST', body: payload })
           .then(function (r) {
@@ -560,6 +570,7 @@
             body: {
               email: formEl.email.value,
               password: formEl.password.value,
+              code: formEl.code ? formEl.code.value : '',
               name: formEl.name ? formEl.name.value : ''
             }
           });
