@@ -9,6 +9,8 @@
   window.__KY_SYNC_LOADED = true;
 
   var META_KEY = 'kaoyanSync.meta.v1';
+  var ME_CACHE_KEY = 'kaoyanSync.me.v1';
+  var ME_CACHE_TTL_MS = 60 * 1000;
   var DEBOUNCE_MS = 2500;
 
   var state = {
@@ -434,6 +436,7 @@
         });
       });
       modalMask.querySelector('#ky-logout-btn').addEventListener('click', function () {
+        try { sessionStorage.removeItem(ME_CACHE_KEY); } catch (e) {}
         api('/api/auth/logout', { method: 'POST' }).finally(function () {
           state.user = null;
           state.dirty = {};
@@ -518,6 +521,11 @@
       + '</div>';
 
     modalMask.querySelector('[data-close]').addEventListener('click', closeModal);
+    modalMask.querySelectorAll('a.ky-oauth-btn').forEach(function (a) {
+      a.addEventListener('click', function () {
+        try { sessionStorage.removeItem(ME_CACHE_KEY); } catch (e) {}
+      });
+    });
     modalMask.querySelectorAll('.ky-auth-tab').forEach(function (b) {
       b.addEventListener('click', function () {
         state.mode = b.getAttribute('data-mode');
@@ -588,6 +596,7 @@
 
         req.then(function (res) {
           state.user = res.user;
+          try { sessionStorage.setItem(ME_CACHE_KEY, JSON.stringify({ t: Date.now(), user: res.user, providers: state.providers })); } catch (e) {}
           updateAuthButton();
           renderModal('登录成功，正在同步你的学习记录…', 'ok');
           return syncPullAndMerge({ full: true, silentToast: true }).then(function (sr) {
@@ -658,34 +667,54 @@
   }
 
   /* ── 启动 ── */
+  function readMeCache() {
+    try {
+      var raw = sessionStorage.getItem(ME_CACHE_KEY);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (obj && Date.now() - obj.t < ME_CACHE_TTL_MS) return obj;
+    } catch (e) {}
+    return null;
+  }
+
+  function applyMeState(res, pullRemote) {
+    state.available = true;
+    state.providers = res.providers || state.providers;
+    state.user = res.user || null;
+    var meta = readMeta();
+    if (state.user && meta.userId === state.user.id) {
+      state.lastSyncAt = meta.lastSyncAt || 0;
+    }
+    mountButton();
+
+    var params = new URLSearchParams(location.search);
+    var authErr = params.get('auth_err');
+    if (authErr) {
+      params.delete('auth_err');
+      var cleanUrl = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
+      try { history.replaceState(null, '', cleanUrl); } catch (e) {}
+      openModal(authErr, 'err');
+    }
+
+    if (pullRemote && state.user) {
+      syncPullAndMerge({ full: false, silentToast: false }).catch(function () {});
+    }
+  }
+
   function init() {
     injectStyles();
-    api('/api/auth/me').then(function (res) {
-      state.available = true;
-      state.providers = res.providers || state.providers;
-      state.user = res.user || null;
-      var meta = readMeta();
-      if (state.user && meta.userId === state.user.id) {
-        state.lastSyncAt = meta.lastSyncAt || 0;
-      }
-      mountButton();
-
-      // 检查 OAuth 回调错误提示
-      var params = new URLSearchParams(location.search);
-      var authErr = params.get('auth_err');
-      if (authErr) {
-        params.delete('auth_err');
-        var cleanUrl = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
-        try { history.replaceState(null, '', cleanUrl); } catch (e) {}
-        openModal(authErr, 'err');
-      }
-
-      if (state.user) {
-        syncPullAndMerge({ full: false, silentToast: false }).catch(function () {});
-      }
-    }).catch(function () {
-      // 本地静态预览或离线桌面端：静默不挂载云同步按钮
-    });
+    var cached = readMeCache();
+    var hasAuthErr = location.search.indexOf('auth_err=') >= 0;
+    if (cached && !hasAuthErr) {
+      applyMeState(cached, false);
+    } else {
+      api('/api/auth/me').then(function (res) {
+        try { sessionStorage.setItem(ME_CACHE_KEY, JSON.stringify({ t: Date.now(), user: res.user || null, providers: res.providers || state.providers })); } catch (e) {}
+        applyMeState(res, true);
+      }).catch(function () {
+        // 本地静态预览或离线桌面端：静默不挂载云同步按钮
+      });
+    }
 
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) flushDirty(true);
