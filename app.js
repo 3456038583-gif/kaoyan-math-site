@@ -5,6 +5,7 @@
   const appEl = document.getElementById('app');
   const yearsEl = document.getElementById('years');
   const yprogBtn = document.getElementById('yprogBtn');
+  const mockbarEl = document.getElementById('mockbar');
   const modulesEl = document.getElementById('modules');
   const sheetEl = document.getElementById('pdfsheet');
   const frameEl = document.getElementById('pdfFrame');
@@ -1749,11 +1750,49 @@
     </section>`;
   }
 
+  function mockNeighbors(year, subject) {
+    const list = builtinPapers(subject);
+    const idx = list.indexOf(year);
+    if (idx < 0) return { prev: null, next: null };
+    const mk = y => (y && MOCK_PAPERS[y] ? { year: y, meta: MOCK_PAPERS[y] } : null);
+    return {
+      prev: idx > 0 ? mk(list[idx - 1]) : null,
+      next: idx + 1 < list.length ? mk(list[idx + 1]) : null
+    };
+  }
+
+  function renderMockBar() {
+    if (!mockbarEl) return;
+    if (state.view !== 'mock' || !state.paper) {
+      mockbarEl.hidden = true;
+      mockbarEl.innerHTML = '';
+      return;
+    }
+    const meta = mockPaperMeta(state.paper, state.mockSubject);
+    if (!meta) {
+      mockbarEl.hidden = true;
+      mockbarEl.innerHTML = '';
+      return;
+    }
+    const { prev, next } = mockNeighbors(state.paper, state.mockSubject);
+    const stepBtn = (item, dir) => {
+      const label = dir === 'prev' ? '‹ 上一套' : '下一套 ›';
+      if (!item) return `<button class="mb-step" type="button" disabled>${label}</button>`;
+      return `<button class="mb-step" type="button" data-open-paper="${item.year}" data-paper-subj="${item.meta.subject}" title="${esc(item.meta.name)}">${label}</button>`;
+    };
+    mockbarEl.hidden = false;
+    mockbarEl.innerHTML = `<button class="mb-back" type="button" data-close-paper title="返回模拟卷列表">`
+      + `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5 6 8l4.5 4.5"/></svg>`
+      + `<span>返回模拟卷</span></button>`
+      + `<span class="mb-title" title="${esc(meta.name)}">${esc(meta.name)}</span>`
+      + `<div class="mb-nav">${stepBtn(prev, 'prev')}${stepBtn(next, 'next')}</div>`;
+  }
+
   function mockPaperHTML(year, subject) {
     const meta = mockPaperMeta(year, subject);
     const paper = PAPERS[paperKey(year, subject)] || [];
     if (!meta || !paper.length) {
-      return `<div class="card empty">这套模拟卷还没整理好。<button class="btn" type="button" data-close-paper>返回模拟卷</button></div>`;
+      return `<div class="card empty">这套模拟卷还没整理好。<button class="btn" type="button" data-close-paper>← 返回模拟卷</button></div>`;
     }
     const c = computePaperScore(year, subject);
     const groups = groupsFor(2027);
@@ -1778,6 +1817,14 @@
         })).join('')}
       </section>`;
     }).join('');
+    const { prev, next } = mockNeighbors(year, subject);
+    const footNav = `<nav class="mock-footbar" aria-label="模拟卷切换">
+        <button class="btn primary" type="button" data-close-paper>← 返回模拟卷列表</button>
+        <div class="mf-steps">
+          ${prev ? `<button class="btn" type="button" data-open-paper="${prev.year}" data-paper-subj="${prev.meta.subject}" title="${esc(prev.meta.name)}">‹ 上一套</button>` : ''}
+          ${next ? `<button class="btn" type="button" data-open-paper="${next.year}" data-paper-subj="${next.meta.subject}" title="${esc(next.meta.name)}">下一套 ›</button>` : ''}
+        </div>
+      </nav>`;
 
     return `<header class="yearhero">
         <div>
@@ -1789,7 +1836,7 @@
         <div class="pdfbtns">
           ${meta.pdfPaper ? `<button class="btn primary" type="button" data-pdf="${meta.pdfPaper}" data-pdf-title="${esc(meta.name)} 试卷">试卷 PDF</button>` : ''}
           ${meta.pdfSol ? `<button class="btn" type="button" data-pdf="${meta.pdfSol}" data-pdf-title="${esc(meta.name)} 解析">解析 PDF</button>` : ''}
-          <button class="btn" type="button" data-close-paper>返回列表</button>
+          <button class="btn" type="button" data-close-paper>← 返回模拟卷</button>
         </div>
       </header>
       <section class="section">${scorePanelHTML(year, subject)}</section>
@@ -1798,6 +1845,7 @@
         ${qJumpBarHTML(year, subject, paper)}
         ${body || '<div class="card empty">这套卷的题目整理中</div>'}
       </section>
+      ${footNav}
       ${scoreFloatHTML(year, subject)}`;
   }
 
@@ -2956,6 +3004,8 @@
   /* ── 主渲染 ── */
   // 复用已渲染好的 DOM 节点：切回同一年时既不重建页面，也不重排公式
   let renderToken = 0;
+  let pendingHistoryPush = false;
+  let skipHistoryUpdate = false;
 
   const cacheKeyOf = () => state.view === 'stats'
     ? `stats|${state.statsSubject}|${statsChartWidth()}`
@@ -3043,16 +3093,24 @@
     if (state.paper && typeof MOCK_PAPERS !== 'undefined' && MOCK_PAPERS[state.paper]) {
       state.mockSubject = MOCK_PAPERS[state.paper].subject;
     }
-    try {
-      const qs = new URLSearchParams({ view: state.view, year: String(state.year) });
-      if (state.view === 'stats') qs.set('subj', String(state.statsSubject));
-      if (state.view === 'supp') qs.set('subj', String(state.suppSubject || 1));
-      if (state.view === 'mock') {
-        qs.set('subj', String(state.mockSubject));
-        if (state.paper) qs.set('paper', String(state.paper));
-      }
-      history.replaceState(null, '', `?${qs}`);
-    } catch (e) { /* file:// 下部分浏览器不允许改写地址 */ }
+    if (!skipHistoryUpdate) {
+      try {
+        const qs = new URLSearchParams({ view: state.view, year: String(state.year) });
+        if (state.view === 'stats') qs.set('subj', String(state.statsSubject));
+        if (state.view === 'supp') qs.set('subj', String(state.suppSubject || 1));
+        if (state.view === 'mock') {
+          qs.set('subj', String(state.mockSubject));
+          if (state.paper) qs.set('paper', String(state.paper));
+        }
+        if (pendingHistoryPush) {
+          history.pushState({ view: state.view, paper: state.paper, subj: state.mockSubject }, '', `?${qs}`);
+        } else {
+          history.replaceState(history.state, '', `?${qs}`);
+        }
+      } catch (e) { /* file:// 下部分浏览器不允许改写地址 */ }
+    }
+    pendingHistoryPush = false;
+    skipHistoryUpdate = false;
     savePosition();
 
     reconcileLoadedScores();
@@ -3086,6 +3144,7 @@
       b.setAttribute('aria-current', String(Number(b.dataset.year) === state.year));
     });
     renderYearProgress();
+    renderMockBar();
   }
 
   function renderMath(root) {
@@ -3173,6 +3232,24 @@
     document.body.style.overflow = '';
   }
 
+  function openMockPaper(y, s) {
+    if (!y) return;
+    const fromList = state.view === 'mock' && !state.paper;
+    state.view = 'mock';
+    state.paper = y;
+    state.mockSubject = s || (MOCK_PAPERS[y] || {}).subject || state.mockSubject;
+    if (fromList) pendingHistoryPush = true;
+    render();
+    scrollTop();
+  }
+
+  function closeMockPaper() {
+    state.view = 'mock';
+    state.paper = 0;
+    render();
+    scrollTop();
+  }
+
   /* ── 事件 ── */
   appEl.addEventListener('click', e => {
     const copyQ = e.target.closest('[data-copyq]');
@@ -3243,18 +3320,11 @@
     if (openPaper) {
       const y = Number(openPaper.dataset.openPaper);
       const s = Number(openPaper.dataset.paperSubj) || (MOCK_PAPERS[y] || {}).subject || state.mockSubject;
-      if (!y) return;
-      state.view = 'mock';
-      state.paper = y;
-      state.mockSubject = s;
-      render();
-      scrollTop();
+      openMockPaper(y, s);
       return;
     }
     if (e.target.closest('[data-close-paper]')) {
-      state.paper = 0;
-      render();
-      scrollTop();
+      closeMockPaper();
       return;
     }
 
@@ -3939,6 +4009,41 @@
   if (yprogBtn) {
     yprogBtn.addEventListener('click', () => setYprogOpen(!yprogOpen()));
   }
+
+  // 吸顶模拟卷导航条：返回模拟卷列表 / 切上下套
+  if (mockbarEl) {
+    mockbarEl.addEventListener('click', e => {
+      if (e.target.closest('[data-close-paper]')) {
+        closeMockPaper();
+        return;
+      }
+      const openBtn = e.target.closest('[data-open-paper]');
+      if (openBtn && !openBtn.disabled) {
+        const y = Number(openBtn.dataset.openPaper);
+        const s = Number(openBtn.dataset.paperSubj) || (MOCK_PAPERS[y] || {}).subject || state.mockSubject;
+        openMockPaper(y, s);
+      }
+    });
+  }
+
+  // 浏览器后退 / 前进：在模拟卷单卷与模拟卷列表间无缝返回
+  window.addEventListener('popstate', () => {
+    const sp = new URLSearchParams(location.search);
+    const v = sp.get('view');
+    if (v && VALID_VIEWS.includes(v)) state.view = v;
+    const s = Number(sp.get('subj'));
+    if (s >= 1 && s <= 3) {
+      if (state.view === 'mock') state.mockSubject = s;
+      else if (state.view === 'stats') state.statsSubject = s;
+      else if (state.view === 'supp') state.suppSubject = s;
+    }
+    const y = Number(sp.get('year'));
+    if (liveYears().includes(y)) state.year = y;
+    const p = Number(sp.get('paper'));
+    state.paper = (state.view === 'mock' && isMockYear(p)) ? p : 0;
+    skipHistoryUpdate = true;
+    render();
+  });
 
   // 统计图表按容器宽度绘制，窗口尺寸变化后重画一次
   let resizeTimer = 0;

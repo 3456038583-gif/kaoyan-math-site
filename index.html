@@ -449,6 +449,81 @@ html[data-view="mock"] .yearprog { display: none; }
   .yearprog { font-size: 10.5px; line-height: 1.4; gap: 2px 8px; padding-bottom: 7px; }
   .yearprog .yp-subj, .yearprog .yp-sep { display: none; }
 }
+/* 模拟卷单卷吸顶返回条：进入具体模拟卷后取代年份条显示，滚动做题时随时可返回列表或切套 */
+.mockbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 9px;
+  min-width: 0;
+}
+.mockbar[hidden] { display: none; }
+.mb-back {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 12px 0 8px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, color .15s, border-color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mb-back:hover { background: var(--accent); color: var(--accent-ink); }
+.mb-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mb-back svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.mb-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mb-nav {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.mb-step {
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 11.5px;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.mb-step:hover:not(:disabled) { border-color: var(--accent); color: var(--ink); background: var(--mask); }
+.mb-step:disabled { opacity: .38; cursor: default; }
+.mock-footbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.mock-footbar .mf-steps { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .hide { display: none !important; }
 
 /* ── 通用版块 ────────────────────────── */
@@ -1997,6 +2072,10 @@ footer .mono { font-family: var(--mono); }
   .segbtn { flex: 1; padding: 8px 5px; text-align: center; }
   .mockfield, .mockfield--subj { flex: 1 1 100%; }
   .mockadd { width: 100%; justify-content: center; }
+  .mockbar { gap: 6px; padding-bottom: 6px; }
+  .mb-back { height: 28px; padding: 0 10px 0 7px; font-size: 12px; }
+  .mb-title { font-size: 11.5px; }
+  .mb-step { height: 26px; padding: 0 7px; font-size: 11px; }
 }
 @media (max-width: 520px) {
   body { font-size: 14px; }
@@ -2042,9 +2121,15 @@ footer .mono { font-family: var(--mono); }
   .yt-row { grid-template-columns: 42px repeat(3, minmax(0, 1fr)) 72px; gap: 5px; padding: 8px 1px; }
   .yt-cell b { font-size: 12px; }
   .chart-tip { min-width: 132px; }
+  .mb-title { display: none; }
+  .mb-nav { margin-left: auto; }
+  .mock-footbar { flex-direction: column; align-items: stretch; }
+  .mock-footbar .btn { justify-content: center; }
+  .mock-footbar .mf-steps { display: flex; }
+  .mock-footbar .mf-steps .btn { flex: 1; }
 }
 @media print {
-  .navwrap, .pdfbtns, .filters, .ansbtn, .minilink, .headlinks, .qscore, .scorefloat, .qtimer, .qvlink, .vlink, footer { display: none !important; }
+  .navwrap, .pdfbtns, .filters, .ansbtn, .minilink, .headlinks, .qscore, .scorefloat, .qtimer, .qvlink, .vlink, .mockbar, .mock-footbar, footer { display: none !important; }
   body { padding: 0; background: #fff; }
   .qcard, .card { box-shadow: none; break-inside: avoid; }
   .ansbox { display: block !important; }
@@ -2262,6 +2347,8 @@ html[data-loading="true"] #app::after {
       </div>
       <!-- 这一卷做完了没 / 还有哪些年份没做，可用右侧小勾手动标记；默认收起，点「进度」展开 -->
       <div class="yearprog" id="yearprog" aria-live="polite" hidden></div>
+      <!-- 进入具体模拟卷时显示的吸顶返回条：随时可退回模拟卷列表或切换上下套 -->
+      <div class="mockbar" id="mockbar" aria-label="模拟卷导航" hidden></div>
     </div>
   </div>
 
@@ -2306,6 +2393,6 @@ html[data-loading="true"] #app::after {
 <script src="supp.js"></script>
 <!-- 各年份重点题/补充真题的题目清单：年份条要显示全部 17 年的完成情况，不必为此载入 17 年题库 -->
 <script src="keymap.js"></script>
-<script src="app.js?v=20261127a"></script>
+<script src="app.js?v=20261128a"></script>
 </body>
 </html>
