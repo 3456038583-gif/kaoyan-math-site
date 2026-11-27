@@ -1,0 +1,14 @@
+{
+  "name": "考研数学真题速查",
+  "short_name": "考研数学",
+  "description": "2010–2026 考研数学真题与 61 套 2027 模拟卷速查",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f4ee",
+  "theme_color": "#0d2a4a",
+  "icons": [
+    { "src": "/img/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/img/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/img/icons/math.png", "sizes": "1024x1024", "type": "image/png" }
+  ]
+}

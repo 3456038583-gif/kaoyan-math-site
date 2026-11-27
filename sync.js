@@ -287,7 +287,16 @@
       + '.ky-prof-tag{font-size:11px;padding:2px 7px;border-radius:99px;background:var(--surface,#fffdf8);border:1px solid var(--line,#d8d7cc);color:var(--muted,#6d746c);}'
       + '.ky-prof-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}'
       + '.ky-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:280;background:var(--ink,#1b211d);color:var(--surface,#fffdf8);padding:9px 14px;border-radius:99px;font-size:12.5px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.22);}'
-      + '.ky-toast button{border:0;background:var(--accent,#2f5d8a);color:#fff;font-size:12px;padding:3px 9px;border-radius:99px;cursor:pointer;}';
+      + '.ky-toast button{border:0;background:var(--accent,#2f5d8a);color:#fff;font-size:12px;padding:3px 9px;border-radius:99px;cursor:pointer;}'
+      + '@media (max-width:720px){'
+      + ':root{--sb-h:82px !important;}'
+      + '.sitebar,.topbar{box-sizing:border-box !important;flex-wrap:wrap !important;align-items:center !important;height:auto !important;min-height:var(--sb-h) !important;padding:8px 15px 6px !important;gap:6px 10px !important;}'
+      + '.sb-brand,.topbar .brand{font-size:13.5px !important;letter-spacing:.04em !important;order:1 !important;}'
+      + '.sitebar .ghbtn,.topbar .ghbtn{order:2 !important;}'
+      + '.sitebar .ky-tools,.topbar .ky-tools{order:3 !important;margin-left:auto !important;}'
+      + '.sb-links,.topbar nav{order:4 !important;flex:0 0 100% !important;width:100% !important;min-width:0 !important;margin-left:0 !important;padding:6px 20px 2px 0 !important;border-top:1px solid color-mix(in srgb,var(--line,#e0dfd4) 65%,transparent) !important;gap:16px !important;font-size:13.5px !important;justify-content:flex-start !important;overflow-x:auto !important;overflow-y:hidden !important;scrollbar-width:none !important;-webkit-overflow-scrolling:touch !important;}'
+      + '.sb-links a,.topbar nav a{flex:none !important;white-space:nowrap !important;padding:3px 0 !important;}'
+      + '}';
 
     var st = document.createElement('style');
     st.id = 'ky-sync-style';
