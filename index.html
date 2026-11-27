@@ -1936,29 +1936,42 @@ footer .mono { font-family: var(--mono); }
   .supp-grid { grid-template-columns: 1fr; }
   .distrow { grid-template-columns: 52px 1fr; }
   .distrow .sc { grid-column: 2; }
-  /* 导航：两行三列，六个板块全部露出，不再依赖横向滑动 */
+  /* 导航紧凑两行：第一行分科真题（3列），第二行工具类（单行可横向滑动），把更多纵向空间留给题目 */
   .modules {
     display: grid;
-    gap: 6px;
+    gap: 5px;
     overflow: visible;
-    padding-block: 8px;
+    padding-block: 5px;
   }
-  .modgroup { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  /* 工具类现在有四项：2×2 排布，避免第三行只剩一个 */
-  .modgroup--tools { grid-template-columns: repeat(2, 1fr); margin-left: 0; }
+  .modgroup { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; min-width: 0; }
+  .modgroup--tools {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 5px;
+    min-width: 0;
+    margin-left: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modgroup--tools::-webkit-scrollbar { display: none; }
   .modgroup--tools::before { display: none; }
-  /* 工具类为奇数项时，最后一项占满整行 */
-  .modgroup--tools .mod:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .mod {
-    padding: 8px 4px;
-    font-size: 12.5px;
+    padding: 5px 4px;
+    font-size: 12px;
+    line-height: 1.35;
     text-align: center;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .mod .cnt { margin-left: 3px; font-size: 9.5px; }
+  .mod .wcnt { min-width: 14px; margin-left: 3px; padding: 0 4px; font-size: 9.5px; line-height: 14px; }
   /* 工具类用描边 + 底色，和实心高亮的真题页签区分 */
   .modgroup--tools .mod {
+    flex: 1 0 auto;
+    padding: 4px 8px;
+    font-size: 11.5px;
+    overflow: visible;
     background: var(--surface);
     border-color: var(--line);
   }
@@ -1967,9 +1980,12 @@ footer .mono { font-family: var(--mono); }
     border-color: var(--accent);
     color: var(--accent-ink);
   }
-  /* 年份条给足宽度，右侧渐隐提示可横向滑动 */
-  .yearbar { gap: 6px; }
-  .yprog-btn { height: 28px; padding: 0 8px 0 7px; font-size: 11px; }
+  /* 年份条压缩高度，右侧渐隐提示可横向滑动 */
+  .yearbar { gap: 6px; padding-bottom: 6px; }
+  .year { height: 32px; min-width: 42px; gap: 2px; padding: 0 5px; border-radius: 16px; font-size: 12.5px; }
+  .year .y-st { font-size: 9px; }
+  .year.is-done .y-st { font-size: 9.5px; }
+  .yprog-btn { height: 26px; padding: 0 8px 0 6px; font-size: 11px; }
   .years {
     mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
